@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VPHO — Главная</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,131 +12,131 @@
             background: #0e0b14;
             font-family: 'Inter', sans-serif;
             color: #e5e0f0;
-            padding: 20px;
+            padding: 16px;
             min-height: 100vh;
         }
         .container { max-width: 1100px; margin: 0 auto; }
 
-        /* Шапка */
+        /* ШАПКА — как Discord */
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: #1e1a2b;
-            padding: 14px 28px;
-            border-radius: 40px;
-            margin-bottom: 30px;
+            background: #1a1628;
+            padding: 12px 24px;
+            border-radius: 60px;
+            border: 1px solid #2a2640;
+            margin-bottom: 28px;
             flex-wrap: wrap;
-            gap: 12px;
-            border: 1px solid #2e2a3e;
+            gap: 10px;
         }
         .logo {
-            font-size: 28px;
+            font-size: 26px;
             font-weight: 900;
             color: #c084fc;
             text-decoration: none;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
         .logo i { margin-right: 8px; }
         .nav {
             display: flex;
-            gap: 20px;
+            gap: 6px;
             flex-wrap: wrap;
         }
         .nav a {
             color: #a99bc4;
             text-decoration: none;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14px;
+            padding: 6px 16px;
+            border-radius: 40px;
             transition: 0.2s;
-            padding: 6px 12px;
-            border-radius: 30px;
         }
-        .nav a:hover { color: #fff; background: #2e2a3e; }
+        .nav a:hover { color: #fff; background: #2a2640; }
         .nav a.active { color: #fff; background: #3b2a5e; }
         .user-block {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
             font-weight: 600;
-            font-size: 15px;
+            font-size: 14px;
         }
         .user-block .avatar {
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             background: #7c3aed;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            font-size: 16px;
+            font-size: 15px;
             color: #fff;
         }
         .logout {
             color: #ef4444;
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
         }
         .logout:hover { text-decoration: underline; }
 
-        /* Карточка приветствия */
+        /* ПРИВЕТСТВИЕ */
         .welcome {
             background: #1a1628;
-            border-radius: 28px;
-            padding: 28px 32px;
+            border-radius: 24px;
+            padding: 24px 28px;
             border: 1px solid #2a2640;
-            margin-bottom: 30px;
+            margin-bottom: 28px;
         }
         .welcome h1 {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: 800;
             color: #e5e0f0;
         }
         .welcome h1 i { color: #c084fc; margin-right: 10px; }
         .welcome p {
             color: #a99bc4;
-            font-size: 15px;
-            margin-top: 6px;
+            font-size: 14px;
+            margin-top: 4px;
         }
         .welcome .telegram {
-            margin-top: 16px;
+            margin-top: 14px;
             background: #241f34;
-            padding: 16px 22px;
+            padding: 14px 20px;
             border-radius: 18px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 12px;
-            border: 1px solid #2e2a3e;
+            gap: 10px;
+            border: 1px solid #2a2640;
         }
-        .welcome .telegram span { font-weight: 600; color: #e5e0f0; }
+        .welcome .telegram span { font-weight: 600; font-size: 14px; color: #e5e0f0; }
         .btn-tg {
             background: #3b2a5e;
             border: none;
             color: #fff;
-            padding: 10px 28px;
+            padding: 8px 24px;
             border-radius: 40px;
             font-weight: 700;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
             transition: 0.2s;
         }
         .btn-tg:hover { background: #5b3a8e; }
 
-        /* КРУГЛЯШКИ (4 блока) */
+        /* 4 КРУГЛЯШКИ */
         .grid-circles {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 18px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
         }
         .circle-card {
             background: #1a1628;
-            border-radius: 30px;
-            padding: 24px 16px 20px;
+            border-radius: 40px;
+            padding: 20px 14px 18px;
             text-align: center;
             border: 1px solid #2a2640;
             transition: 0.25s;
@@ -144,41 +144,40 @@
         }
         .circle-card:hover {
             border-color: #7c3aed;
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(124,58,237,0.12);
+            transform: translateY(-3px);
         }
         .circle-card .icon {
-            font-size: 38px;
+            font-size: 34px;
             color: #c084fc;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         .circle-card h4 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             color: #e5e0f0;
-            margin-bottom: 4px;
         }
         .circle-card p {
-            font-size: 13px;
+            font-size: 12px;
             color: #8f7fb0;
+            margin-top: 2px;
         }
         .circle-card .badge {
             display: inline-block;
             background: #3b2a5e;
-            padding: 4px 14px;
+            padding: 2px 14px;
             border-radius: 40px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             color: #c084fc;
-            margin-top: 10px;
+            margin-top: 8px;
         }
 
-        /* Секция товаров */
+        /* ТОВАРЫ */
         .shop-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 18px;
+            margin-bottom: 28px;
         }
         .product-card {
             background: #1a1628;
@@ -190,13 +189,12 @@
         }
         .product-card:hover {
             border-color: #7c3aed;
-            transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(124,58,237,0.10);
+            transform: translateY(-3px);
         }
         .product-card i {
-            font-size: 40px;
+            font-size: 38px;
             color: #c084fc;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         .product-card h4 {
             font-size: 20px;
@@ -204,12 +202,12 @@
             color: #e5e0f0;
         }
         .product-card .sub {
-            font-size: 13px;
+            font-size: 12px;
             color: #8f7fb0;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         .product-card .price {
-            font-size: 20px;
+            font-size: 18px;
             font-weight: 800;
             color: #c084fc;
             margin: 6px 0 10px;
@@ -218,10 +216,10 @@
             background: #3b2a5e;
             border: none;
             color: #fff;
-            padding: 10px 28px;
+            padding: 8px 28px;
             border-radius: 40px;
             font-weight: 700;
-            font-size: 14px;
+            font-size: 13px;
             cursor: pointer;
             transition: 0.2s;
         }
@@ -230,10 +228,75 @@
         .footer {
             text-align: center;
             color: #5a4a7a;
-            font-size: 14px;
-            padding: 20px 0 6px;
-            border-top: 1px solid #1e1a2b;
+            font-size: 13px;
+            padding: 16px 0 4px;
+            border-top: 1px solid #1a1628;
         }
+
+        /* МОДАЛКА ПОМОЩИ (Диспетчер) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            backdrop-filter: blur(4px);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: #1a1628;
+            border-radius: 30px;
+            padding: 32px 30px;
+            max-width: 420px;
+            width: 100%;
+            border: 1px solid #2a2640;
+            position: relative;
+        }
+        .modal .close {
+            position: absolute;
+            top: 12px; right: 18px;
+            font-size: 26px;
+            color: #8f7fb0;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+        .modal .close:hover { color: #fff; }
+        .modal h2 {
+            font-size: 22px;
+            font-weight: 800;
+            color: #e5e0f0;
+        }
+        .modal h2 i { color: #c084fc; margin-right: 8px; }
+        .modal p {
+            color: #a99bc4;
+            font-size: 14px;
+            margin: 8px 0 16px;
+            line-height: 1.6;
+        }
+        .modal .help-btn {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            background: #3b2a5e;
+            border: none;
+            border-radius: 16px;
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            text-decoration: none;
+            margin-bottom: 10px;
+            font-family: 'Inter', sans-serif;
+        }
+        .modal .help-btn:hover { background: #5b3a8e; }
+        .modal .help-btn i { margin-right: 10px; }
 
         @media (max-width: 600px) {
             .header { flex-direction: column; align-items: stretch; text-align: center; }
@@ -246,14 +309,14 @@
 <body>
 <div class="container">
 
-    <!-- Шапка -->
+    <!-- ШАПКА -->
     <header class="header">
         <a href="dashboard.html" class="logo"><i class="fas fa-cog"></i> VPHO</a>
         <div class="nav">
             <a href="dashboard.html" class="active">Главная</a>
             <a href="catalog.html">Магазин</a>
-            <a href="#">Поддержка</a>
-            <a href="#">FAQ</a>
+            <a href="#" onclick="openHelp()">Поддержка</a>
+            <a href="#" onclick="openHelp()">FAQ</a>
             <a href="#">Финансы</a>
         </div>
         <div class="user-block">
@@ -263,7 +326,7 @@
         </div>
     </header>
 
-    <!-- Приветствие -->
+    <!-- ПРИВЕТСТВИЕ -->
     <section class="welcome">
         <h1><i class="fas fa-cog"></i> Добро пожаловать в VPHO</h1>
         <p>Мы только открылись! 🔥 Промокод <strong style="color:#c084fc;">VPHO20</strong> — скидка 20%</p>
@@ -278,14 +341,14 @@
         <div class="circle-card">
             <div class="icon"><i class="fas fa-box"></i></div>
             <h4>Товары</h4>
-            <p>VPN-решения для ПК</p>
+            <p>VPN-решения</p>
             <span class="badge">2 позиции</span>
         </div>
-        <div class="circle-card">
-            <div class="icon"><i class="fas fa-tasks"></i></div>
+        <div class="circle-card" onclick="openHelp()" style="cursor:pointer;">
+            <div class="icon"><i class="fas fa-headset"></i></div>
             <h4>Диспетчер</h4>
-            <p>Управляй подписками</p>
-            <span class="badge">активно</span>
+            <p>Помощь и вопросы</p>
+            <span class="badge">онлайн</span>
         </div>
         <div class="circle-card">
             <div class="icon"><i class="fab fa-discord"></i></div>
@@ -296,15 +359,15 @@
         <div class="circle-card">
             <div class="icon"><i class="fas fa-map-pin"></i></div>
             <h4>Карта</h4>
-            <p>Оставь отзыв → бонус</p>
+            <p>Отзыв → бонус</p>
             <span class="badge">+50 ₽</span>
         </div>
     </div>
 
-    <!-- Товары -->
+    <!-- ТОВАРЫ -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
-        <h2 style="font-size:22px; font-weight:700; color:#e5e0f0;"><i class="fas fa-store" style="color:#c084fc;"></i> Наши товары</h2>
-        <a href="catalog.html" style="color:#c084fc; font-weight:600; text-decoration:none;">Смотреть все →</a>
+        <h2 style="font-size:20px; font-weight:700; color:#e5e0f0;"><i class="fas fa-store" style="color:#c084fc;"></i> Наши товары</h2>
+        <a href="catalog.html" style="color:#c084fc; font-weight:600; text-decoration:none; font-size:14px;">Смотреть все →</a>
     </div>
     <div class="shop-grid">
         <div class="product-card">
@@ -326,12 +389,35 @@
     <div class="footer">© 2026 VPHO</div>
 </div>
 
+<!-- МОДАЛКА ПОМОЩИ (Диспетчер) -->
+<div class="modal-overlay" id="helpModal">
+    <div class="modal">
+        <button class="close" onclick="closeHelp()">&times;</button>
+        <h2><i class="fas fa-headset"></i> Диспетчер</h2>
+        <p>Здесь ты можешь задать вопрос, сообщить о проблеме или получить помощь. Мы на связи!</p>
+        <a href="https://t.me/VPHO1" target="_blank" class="help-btn"><i class="fab fa-telegram"></i> Написать в Telegram</a>
+        <a href="#" class="help-btn" style="background:#2a2640;" onclick="closeHelp(); alert('Скоро добавим форму!');"><i class="fas fa-envelope"></i> Написать на почту</a>
+    </div>
+</div>
+
 <script>
+    // Имя пользователя
     const name = localStorage.getItem('vpho_username');
     if (name) {
         document.getElementById('usernameDisplay').textContent = name;
         document.getElementById('avatarDisplay').textContent = name.charAt(0).toUpperCase();
     }
+
+    // Открыть помощь
+    function openHelp() {
+        document.getElementById('helpModal').classList.add('active');
+    }
+    function closeHelp() {
+        document.getElementById('helpModal').classList.remove('active');
+    }
+    document.getElementById('helpModal').addEventListener('click', function(e) {
+        if (e.target === this) closeHelp();
+    });
 </script>
 </body>
 </html>
