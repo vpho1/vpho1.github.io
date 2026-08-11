@@ -17,31 +17,34 @@
         }
         .container { max-width: 1100px; margin: 0 auto; }
 
-        /* ШАПКА — как Discord */
+        /* ===== ШАПКА — ВСЁ В ОДНУ СТРОКУ ===== */
         .header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             background: #1a1628;
-            padding: 12px 24px;
+            padding: 10px 24px;
             border-radius: 60px;
             border: 1px solid #2a2640;
             margin-bottom: 28px;
-            flex-wrap: wrap;
-            gap: 10px;
+            flex-wrap: nowrap;
+            gap: 12px;
         }
         .logo {
-            font-size: 26px;
+            font-size: 24px;
             font-weight: 900;
             color: #c084fc;
             text-decoration: none;
-            letter-spacing: 0.5px;
+            white-space: nowrap;
         }
         .logo i { margin-right: 8px; }
+
+        /* Кнопки навигации — в ряд слева */
         .nav {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             flex-wrap: wrap;
+            justify-content: center;
         }
         .nav a {
             color: #a99bc4;
@@ -51,26 +54,31 @@
             padding: 6px 16px;
             border-radius: 40px;
             transition: 0.2s;
+            white-space: nowrap;
         }
         .nav a:hover { color: #fff; background: #2a2640; }
         .nav a.active { color: #fff; background: #3b2a5e; }
+
+        /* Блок пользователя — прижат к правому краю */
         .user-block {
             display: flex;
             align-items: center;
             gap: 12px;
             font-weight: 600;
             font-size: 14px;
+            white-space: nowrap;
+            margin-left: auto;
         }
         .user-block .avatar {
-            width: 36px;
-            height: 36px;
+            width: 34px;
+            height: 34px;
             border-radius: 50%;
             background: #7c3aed;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            font-size: 15px;
+            font-size: 14px;
             color: #fff;
         }
         .logout {
@@ -85,7 +93,7 @@
         .welcome {
             background: #1a1628;
             border-radius: 24px;
-            padding: 24px 28px;
+            padding: 22px 26px;
             border: 1px solid #2a2640;
             margin-bottom: 28px;
         }
@@ -126,17 +134,20 @@
         }
         .btn-tg:hover { background: #5b3a8e; }
 
-        /* 4 КРУГЛЯШКИ */
+        /* ===== 4 КРУГЛЯШКИ — ГОРИЗОНТАЛЬНО ===== */
         .grid-circles {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            display: flex;
+            flex-wrap: wrap;
             gap: 16px;
             margin-bottom: 28px;
+            justify-content: flex-start;
         }
         .circle-card {
+            flex: 1 1 160px;
+            max-width: 200px;
             background: #1a1628;
             border-radius: 40px;
-            padding: 20px 14px 18px;
+            padding: 18px 12px 16px;
             text-align: center;
             border: 1px solid #2a2640;
             transition: 0.25s;
@@ -147,9 +158,9 @@
             transform: translateY(-3px);
         }
         .circle-card .icon {
-            font-size: 34px;
+            font-size: 32px;
             color: #c084fc;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
         .circle-card h4 {
             font-size: 16px;
@@ -169,20 +180,20 @@
             font-size: 11px;
             font-weight: 700;
             color: #c084fc;
-            margin-top: 8px;
+            margin-top: 6px;
         }
 
         /* ТОВАРЫ */
         .shop-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 18px;
             margin-bottom: 28px;
         }
         .product-card {
             background: #1a1628;
             border-radius: 28px;
-            padding: 22px 16px 20px;
+            padding: 20px 14px 18px;
             text-align: center;
             border: 1px solid #2a2640;
             transition: 0.25s;
@@ -192,7 +203,7 @@
             transform: translateY(-3px);
         }
         .product-card i {
-            font-size: 38px;
+            font-size: 36px;
             color: #c084fc;
             margin-bottom: 6px;
         }
@@ -233,7 +244,7 @@
             border-top: 1px solid #1a1628;
         }
 
-        /* МОДАЛКА ПОМОЩИ (Диспетчер) */
+        /* МОДАЛКА ПОМОЩИ */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -250,16 +261,16 @@
         .modal {
             background: #1a1628;
             border-radius: 30px;
-            padding: 32px 30px;
-            max-width: 420px;
+            padding: 30px 28px;
+            max-width: 400px;
             width: 100%;
             border: 1px solid #2a2640;
             position: relative;
         }
         .modal .close {
             position: absolute;
-            top: 12px; right: 18px;
-            font-size: 26px;
+            top: 12px; right: 16px;
+            font-size: 24px;
             color: #8f7fb0;
             cursor: pointer;
             background: none;
@@ -267,7 +278,7 @@
         }
         .modal .close:hover { color: #fff; }
         .modal h2 {
-            font-size: 22px;
+            font-size: 20px;
             font-weight: 800;
             color: #e5e0f0;
         }
@@ -275,7 +286,7 @@
         .modal p {
             color: #a99bc4;
             font-size: 14px;
-            margin: 8px 0 16px;
+            margin: 6px 0 16px;
             line-height: 1.6;
         }
         .modal .help-btn {
@@ -287,7 +298,7 @@
             border-radius: 16px;
             color: #fff;
             font-weight: 700;
-            font-size: 15px;
+            font-size: 14px;
             cursor: pointer;
             transition: 0.2s;
             text-align: center;
@@ -298,18 +309,18 @@
         .modal .help-btn:hover { background: #5b3a8e; }
         .modal .help-btn i { margin-right: 10px; }
 
-        @media (max-width: 600px) {
-            .header { flex-direction: column; align-items: stretch; text-align: center; }
-            .nav { justify-content: center; }
-            .user-block { justify-content: center; }
-            .welcome .telegram { flex-direction: column; text-align: center; }
+        @media (max-width: 768px) {
+            .header { flex-wrap: wrap; justify-content: center; }
+            .nav { order: 3; width: 100%; justify-content: center; }
+            .user-block { margin-left: 0; }
+            .grid-circles { justify-content: center; }
         }
     </style>
 </head>
 <body>
 <div class="container">
 
-    <!-- ШАПКА -->
+    <!-- ===== ШАПКА ===== -->
     <header class="header">
         <a href="dashboard.html" class="logo"><i class="fas fa-cog"></i> VPHO</a>
         <div class="nav">
@@ -326,7 +337,7 @@
         </div>
     </header>
 
-    <!-- ПРИВЕТСТВИЕ -->
+    <!-- ===== ПРИВЕТСТВИЕ ===== -->
     <section class="welcome">
         <h1><i class="fas fa-cog"></i> Добро пожаловать в VPHO</h1>
         <p>Мы только открылись! 🔥 Промокод <strong style="color:#c084fc;">VPHO20</strong> — скидка 20%</p>
@@ -336,7 +347,7 @@
         </div>
     </section>
 
-    <!-- 4 КРУГЛЯШКИ -->
+    <!-- ===== 4 КРУГЛЯШКИ (горизонтально) ===== -->
     <div class="grid-circles">
         <div class="circle-card">
             <div class="icon"><i class="fas fa-box"></i></div>
@@ -364,7 +375,7 @@
         </div>
     </div>
 
-    <!-- ТОВАРЫ -->
+    <!-- ===== ТОВАРЫ ===== -->
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
         <h2 style="font-size:20px; font-weight:700; color:#e5e0f0;"><i class="fas fa-store" style="color:#c084fc;"></i> Наши товары</h2>
         <a href="catalog.html" style="color:#c084fc; font-weight:600; text-decoration:none; font-size:14px;">Смотреть все →</a>
@@ -389,12 +400,12 @@
     <div class="footer">© 2026 VPHO</div>
 </div>
 
-<!-- МОДАЛКА ПОМОЩИ (Диспетчер) -->
+<!-- ===== МОДАЛКА ПОМОЩИ ===== -->
 <div class="modal-overlay" id="helpModal">
     <div class="modal">
         <button class="close" onclick="closeHelp()">&times;</button>
         <h2><i class="fas fa-headset"></i> Диспетчер</h2>
-        <p>Здесь ты можешь задать вопрос, сообщить о проблеме или получить помощь. Мы на связи!</p>
+        <p>Задай вопрос, сообщи о проблеме или получи помощь. Мы на связи!</p>
         <a href="https://t.me/VPHO1" target="_blank" class="help-btn"><i class="fab fa-telegram"></i> Написать в Telegram</a>
         <a href="#" class="help-btn" style="background:#2a2640;" onclick="closeHelp(); alert('Скоро добавим форму!');"><i class="fas fa-envelope"></i> Написать на почту</a>
     </div>
@@ -408,7 +419,6 @@
         document.getElementById('avatarDisplay').textContent = name.charAt(0).toUpperCase();
     }
 
-    // Открыть помощь
     function openHelp() {
         document.getElementById('helpModal').classList.add('active');
     }
