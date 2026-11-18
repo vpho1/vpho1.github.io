@@ -20,8 +20,8 @@
   .tabs button.active { color: #fff; border-bottom-color: #e53935; }
   form { display: none; flex-direction: column; }
   form.active { display: flex; }
-  input { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
-  input:focus { outline: none; border-color: #e53935; }
+  input, select { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
+  input:focus, select:focus { outline: none; border-color: #e53935; }
   .error { color: #ff5252; font-size: 14px; min-height: 18px; margin-bottom: 8px; text-align: center; }
   .btn { padding: 12px; background: #e53935; border: none; color: #fff; border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 8px; }
   .btn:hover { background: #c62828; }
@@ -64,7 +64,7 @@
   .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 22px; width: 90%; max-width: 360px; max-height: 90vh; overflow-y: auto; color: #eee; }
   .modal h2 { color: #e53935; margin-bottom: 12px; font-size: 20px; }
   .modal p { margin-bottom: 8px; line-height: 1.4; }
-  .modal input { width: 100%; }
+  .modal input, .modal select { width: 100%; }
   .inv { background: #222; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
   .inv p { margin-bottom: 8px; font-size: 14px; }
   .inv .btn { width: auto; display: inline-block; padding: 8px 12px; font-size: 14px; margin-right: 6px; }
@@ -142,7 +142,6 @@ const HOSPITAL_TIME = 30 * 1000;
 const START_MONEY = 1000;
 const SECTOR_R = 35;
 
-// Группировки. Территорию каждая рисует сама главный.
 const GROUP_DEFS = [
   { id: 'univ', name: 'Универсам', color: '#2e7d32' },
   { id: 'kino', name: 'Кинопленка', color: '#7b1fa2' },
@@ -174,7 +173,8 @@ function loadGroups() {
       enemies: g.enemies || [],
       challenges: g.challenges || [],
       mercs: g.mercs || [],
-      zone: g.zone || null   // массив [lat, lng], рисует главный
+      letters: g.letters || [],   // письма о мире, приходят лидеру
+      zone: g.zone || null
     };
   });
   return saved;
@@ -230,6 +230,13 @@ function sendToHospital(gid, count) {
   activeMercs(gid);
   const k = Math.min(left, g.mercs.length);
   g.mercs.splice(0, k);
+}
+function endWar(a, b) {
+  groups[a].enemies = groups[a].enemies.filter(x => x !== b);
+  groups[b].enemies = groups[b].enemies.filter(x => x !== a);
+  groups[a].challenges = groups[a].challenges.filter(c => c.from !== b);
+  groups[b].challenges = groups[b].challenges.filter(c => c.from !== a);
+  saveGroups();
 }
 
 // ================= ЭКРАНЫ =================
@@ -315,7 +322,6 @@ function renderMenu() {
 
 function renderInvites() {
   const u = me();
-  const box = document.getElementById('invites');
   let h = '';
   (u.invites || []).forEach((inv, i) => {
     h += `<div class="inv">
@@ -324,13 +330,22 @@ function renderInvites() {
       <button class="btn secondary" data-inv="dec:${i}">Нет</button>
     </div>`;
   });
-  if (u.group && u.role === 'leader' && groups[u.group].challenges.length) {
-    h += `<div class="inv">
-      <p>Вызовов на бой: ${groups[u.group].challenges.length}</p>
-      <button class="btn" data-inv="chal">Открыть вызовы</button>
-    </div>`;
+  if (u.group && u.role === 'leader') {
+    const gr = groups[u.group];
+    if (gr.challenges.length) {
+      h += `<div class="inv">
+        <p>Вызовов на бой: ${gr.challenges.length}</p>
+        <button class="btn" data-inv="chal">Открыть вызовы</button>
+      </div>`;
+    }
+    if (gr.letters.length) {
+      h += `<div class="inv">
+        <p>Писем о мире: ${gr.letters.length}</p>
+        <button class="btn" data-inv="let">Открыть письма</button>
+      </div>`;
+    }
   }
-  box.innerHTML = h;
+  document.getElementById('invites').innerHTML = h;
 }
 
 document.getElementById('invites').addEventListener('click', e => {
@@ -340,6 +355,7 @@ document.getElementById('invites').addEventListener('click', e => {
   if (act === 'acc') acceptInvite(+idx);
   else if (act === 'dec') declineInvite(+idx);
   else if (act === 'chal') showOwnGroup(me().group);
+  else if (act === 'let') showLetters(me().group);
 });
 
 function acceptInvite(i) {
@@ -386,7 +402,7 @@ function msg(text) {
   openModal(`<p>${esc(text)}</p><button class="btn" data-act="close">OK</button>`);
 }
 
-// ================= СПИСОК ГРУППИРОВОК (из меню) =================
+// ================= СПИСОК ГРУППИРОВОК =================
 document.getElementById('btnGroups').onclick = showGroupList;
 function showGroupList() {
   let html = '<h2>Группировки</h2>';
@@ -403,7 +419,7 @@ function showGroupList() {
   openModal(html, acts);
 }
 
-// ================= ТУЛТИП И КЛИКИ =================
+// ================= ТУЛТИПЫ И КЛИКИ =================
 function tooltipHtml(gid) {
   const g = groups[gid];
   const leader = g.leader ? esc(displayName(g.leader)) : 'нет';
@@ -491,7 +507,7 @@ function showOwnGroup(gid) {
     acts.draw = () => startDraw(gid);
     acts.war = () => showWarMenu(gid);
     acts.trade = () => msg('Торговля: скоро');
-    acts.diplo = () => msg('Дипломатия: скоро');
+    acts.diplo = () => showDiplo(gid);
   } else {
     const label = g.leader ? `Стать лидером (сейчас: ${displayName(g.leader)})` : 'Стать главным';
     html += `<button class="btn secondary" data-act="takeover">${esc(label)}</button>`;
@@ -537,8 +553,11 @@ function showInvite(gid) {
     <p>Введите ник игрока.</p>
     <input type="text" id="invNick" placeholder="Ник">
     <button class="btn" data-act="go">Позвать</button>
-    <button class="btn secondary" data-act="close">Отмена</button>
-  `, { go: () => inviteByNick(gid, document.getElementById('invNick').value) });
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    go: () => inviteByNick(gid, document.getElementById('invNick').value),
+    back: () => showOwnGroup(gid)
+  });
 }
 
 function inviteByNick(gid, nick) {
@@ -563,8 +582,11 @@ function showMercs(gid) {
     <p>У вас: ${u.money} руб</p>
     <input type="number" id="mercN" min="1" value="1">
     <button class="btn" data-act="buy">Нанять</button>
-    <button class="btn secondary" data-act="close">Отмена</button>
-  `, { buy: () => buyMercs(gid) });
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    buy: () => buyMercs(gid),
+    back: () => showOwnGroup(gid)
+  });
 }
 
 function buyMercs(gid) {
@@ -607,9 +629,200 @@ function showWarMenu(gid) {
   openModal(html, acts);
 }
 
-// ================= РЕЖИМЫ НА КАРТЕ (рисование и атака) =================
-let mode = null;          // null | 'draw' | 'attack'
-let modeGid = null;       // чья группировка
+// ================= ДИПЛОМАТИЯ =================
+let treatyDraft = null;   // черновик анкеты: { gid, target, type, money, sid }
+
+function showDiplo(gid) {
+  openModal(`
+    <h2>Дипломатия</h2>
+    <button class="btn" data-act="peace">Мир</button>
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    peace: () => showPeaceMenu(gid),
+    back: () => showOwnGroup(gid)
+  });
+}
+
+function showPeaceMenu(gid) {
+  openModal(`
+    <h2>Мир</h2>
+    <button class="btn" data-act="simple">Объявить мир</button>
+    <button class="btn" data-act="treaty">Мир с договором</button>
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    simple: () => showSimplePeace(gid),
+    treaty: () => { treatyDraft = { gid, target: null, type: 'money', money: '', sid: null }; showTreatyForm(gid); },
+    back: () => showDiplo(gid)
+  });
+}
+
+// Простой мир: сразу, без письма
+function showSimplePeace(gid) {
+  const g = groups[gid];
+  if (!g.enemies.length) return msg('Вы ни с кем не воюете.');
+  let html = '<h2>Объявить мир</h2><p>С кем заключить мир:</p>';
+  const acts = {};
+  g.enemies.forEach((eid, i) => {
+    html += `<button class="btn" data-act="p${i}">Мир с: ${esc(groupName(eid))}</button>`;
+    acts[`p${i}`] = () => {
+      endWar(gid, eid);
+      msg(`Мир с «${groupName(eid)}» объявлен.`);
+    };
+  });
+  html += `<button class="btn secondary" data-act="back">Назад</button>`;
+  acts.back = () => showPeaceMenu(gid);
+  openModal(html, acts);
+}
+
+// Анкета «Мир с договором»
+function readTreatyDraft() {
+  const sel = document.getElementById('trTarget');
+  const money = document.getElementById('trMoney');
+  if (sel) treatyDraft.target = sel.value || null;
+  if (money) treatyDraft.money = money.value;
+}
+
+function showTreatyForm(gid) {
+  if (!treatyDraft || treatyDraft.gid !== gid) treatyDraft = { gid, target: null, type: 'money', money: '', sid: null };
+  const d = treatyDraft;
+  const opts = GROUP_DEFS.filter(x => x.id !== gid)
+    .map(x => `<option value="${x.id}" ${d.target === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
+  const sector = d.sid ? sectors.find(s => s.id === d.sid) : null;
+
+  let html = `
+    <h2>Мир с договором</h2>
+    <p>Группировка:</p>
+    <select id="trTarget"><option value="">— выберите —</option>${opts}</select>
+    <p>Что вы даёте в обмен:</p>
+    <button class="btn ${d.type === 'money' ? '' : 'secondary'}" data-act="tmoney">Деньги</button>
+    <button class="btn ${d.type === 'terr' ? '' : 'secondary'}" data-act="tterr">Территорию</button>`;
+
+  if (d.type === 'money') {
+    html += `<input type="number" id="trMoney" min="1" placeholder="Сумма, руб" value="${esc(d.money)}">`;
+  } else {
+    html += `<p>${sector ? 'Точка выбрана на карте.' : 'Точка не выбрана.'}</p>
+      <button class="btn secondary" data-act="tpick">Выбрать точку на карте</button>`;
+  }
+
+  html += `
+    <button class="btn" data-act="tsend">Отправить письмо</button>
+    <button class="btn secondary" data-act="back">Назад</button>`;
+
+  openModal(html, {
+    tmoney: () => { readTreatyDraft(); d.type = 'money'; showTreatyForm(gid); },
+    tterr: () => { readTreatyDraft(); d.type = 'terr'; showTreatyForm(gid); },
+    tpick: () => { readTreatyDraft(); startTreatyPick(gid); },
+    tsend: () => { readTreatyDraft(); sendTreaty(gid); },
+    back: () => showPeaceMenu(gid)
+  });
+}
+
+function sendTreaty(gid) {
+  const d = treatyDraft;
+  if (!d || d.gid !== gid) return;
+  if (!d.target) return msg('Выберите группировку.');
+  const g = groups[gid];
+  const tg = groups[d.target];
+  if (!g.enemies.includes(d.target)) {
+    return msg(`Вы не воюете с «${groupName(d.target)}». Договор возможен только во время войны.`);
+  }
+
+  let offer;
+  if (d.type === 'money') {
+    const amt = parseInt(d.money, 10);
+    if (isNaN(amt) || amt < 1) return msg('Введите сумму больше 0.');
+    if (me().money < amt) return msg(`Не хватает денег. У вас ${me().money} руб.`);
+    offer = { type: 'money', amount: amt };
+  } else {
+    if (!d.sid) return msg('Выберите свою точку на карте.');
+    const s = sectors.find(x => x.id === d.sid);
+    if (!s || s.owner !== gid) return msg('Эта точка уже не ваша. Выберите другую.');
+    offer = { type: 'sector', sid: d.sid };
+  }
+
+  if (!tg.leader) {
+    return msg(`У «${groupName(d.target)}» нет лидера. Письмо не отправлено, война продолжается.`);
+  }
+
+  tg.letters.push({ id: rnd(), from: gid, fromEmail: currentEmail, offer });
+  saveGroups();
+  treatyDraft = null;
+  msg(`Письмо отправлено лидеру «${groupName(d.target)}». Ждём ответа.`);
+}
+
+// Письма о мире (для лидера получающей группировки)
+function offerText(o) {
+  if (o.type === 'money') return `${o.amount} руб`;
+  return 'свою захваченную точку';
+}
+
+function showLetters(gid) {
+  const g = groups[gid];
+  if (!g.letters.length) return msg('Писем нет.');
+  let html = '<h2>Письма о мире</h2>';
+  const acts = {};
+  g.letters.forEach((l, i) => {
+    html += `<div class="inv">
+      <p>От «${esc(groupName(l.from))}»: в обмен на мир предлагают ${offerText(l.offer)}.</p>
+      <button class="btn" data-act="la${i}">Принять</button>
+      <button class="btn secondary" data-act="ld${i}">Отклонить</button>
+    </div>`;
+    acts[`la${i}`] = () => acceptLetter(gid, i);
+    acts[`ld${i}`] = () => declineLetter(gid, i);
+  });
+  html += `<button class="btn secondary" data-act="close">Закрыть</button>`;
+  openModal(html, acts);
+}
+
+function acceptLetter(gid, i) {
+  const g = groups[gid];
+  const l = g.letters[i];
+  if (!l) return;
+  g.letters.splice(i, 1);
+
+  if (!groups[l.from].enemies.includes(gid)) {
+    saveGroups();
+    return msg('Война уже закончилась.');
+  }
+
+  let extra;
+  if (l.offer.type === 'money') {
+    const sender = getUsers()[l.fromEmail];
+    if (!sender || sender.money < l.offer.amount) {
+      saveGroups();
+      return msg('У отправителя не хватает денег. Договор не заключён, война продолжается.');
+    }
+    setUser(l.fromEmail, { money: sender.money - l.offer.amount });
+    setUser(currentEmail, { money: me().money + l.offer.amount });
+    extra = `Получено ${l.offer.amount} руб.`;
+  } else {
+    const s = sectors.find(x => x.id === l.offer.sid);
+    if (s && s.owner === l.from) {
+      s.owner = gid;
+      saveSectors();
+      drawSectors();
+      extra = 'Точка передана вам.';
+    } else {
+      extra = 'Точка уже не принадлежала отправителю, передачи не было.';
+    }
+  }
+
+  endWar(gid, l.from);
+  saveGroups();
+  renderMenu();
+  msg(`Мир с «${groupName(l.from)}» заключён. ${extra}`);
+}
+
+function declineLetter(gid, i) {
+  groups[gid].letters.splice(i, 1);
+  saveGroups();
+  renderMenu();
+  msg('Письмо отклонено. Война продолжается.');
+}
+
+// ================= РЕЖИМЫ НА КАРТЕ =================
+let mode = null;      // null | 'draw' | 'attack' | 'tpick'
+let modeGid = null;
 let drawPts = [];
 let draftLayer = null;
 
@@ -662,6 +875,23 @@ function startAttackPick(gid) {
   showScreen('game'); initMap();
   showHint('Нажмите точку на карте, которую хотите атаковать.');
   map.getContainer().style.cursor = 'crosshair';
+}
+
+function startTreatyPick(gid) {
+  closeModal();
+  cancelMode();
+  mode = 'tpick'; modeGid = gid;
+  showScreen('game'); initMap();
+  showHint('Нажмите свою захваченную точку, которую хотите отдать.');
+  map.getContainer().style.cursor = 'crosshair';
+}
+
+function handleTreatyPick(gid, latlng) {
+  const s = [...sectors].reverse().find(x => x.owner === gid && L.latLng(x.lat, x.lng).distanceTo(latlng) <= SECTOR_R);
+  if (!s) return msg('Здесь нет вашей захваченной точки. Нажмите на свою точку.');
+  treatyDraft.sid = s.id;
+  cancelMode();
+  showTreatyForm(gid);
 }
 
 document.getElementById('hintCancel').onclick = cancelMode;
@@ -791,7 +1021,7 @@ function drawZones() {
 }
 
 function captureSector(lat, lng, owner) {
-  sectors.push({ lat, lng, owner });
+  sectors.push({ id: rnd(), lat, lng, owner });
   saveSectors();
   drawSectors();
 }
@@ -847,6 +1077,8 @@ function initMap() {
       const from = modeGid;
       cancelMode();
       handleAttackPoint(from, e.latlng);
+    } else if (mode === 'tpick') {
+      handleTreatyPick(modeGid, e.latlng);
     }
   });
 
@@ -855,6 +1087,11 @@ function initMap() {
 
 // ================= СТАРТ =================
 (function init() {
+  // у старых точек могло не быть id
+  let fixed = false;
+  sectors.forEach(s => { if (!s.id) { s.id = rnd(); fixed = true; } });
+  if (fixed) saveSectors();
+
   const session = localStorage.getItem(SESSION_KEY);
   if (session && getUsers()[session]) openMenu(session);
   else showScreen('auth');
