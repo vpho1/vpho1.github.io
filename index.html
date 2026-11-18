@@ -7,68 +7,53 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css"/>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: Arial, sans-serif;
-    background: #0d0d0d;
-    color: #eee;
-    min-height: 100vh;
-  }
+  body { font-family: Arial, sans-serif; background: #0d0d0d; color: #eee; min-height: 100vh; }
   .screen { display: none; min-height: 100vh; }
   .screen.active { display: flex; }
 
-  /* ---------- AUTH ---------- */
+  /* AUTH */
   #auth { align-items: center; justify-content: center; }
-  .card {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    border-radius: 12px;
-    padding: 28px;
-    width: 90%;
-    max-width: 360px;
-  }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 28px; width: 90%; max-width: 360px; }
   .card h1 { text-align: center; margin-bottom: 20px; color: #e53935; letter-spacing: 1px; }
   .tabs { display: flex; margin-bottom: 18px; border-bottom: 1px solid #333; }
-  .tabs button {
-    flex: 1; padding: 10px; background: none; border: none;
-    color: #888; font-size: 15px; cursor: pointer; border-bottom: 2px solid transparent;
-  }
+  .tabs button { flex: 1; padding: 10px; background: none; border: none; color: #888; font-size: 15px; cursor: pointer; border-bottom: 2px solid transparent; }
   .tabs button.active { color: #fff; border-bottom-color: #e53935; }
   form { display: none; flex-direction: column; }
   form.active { display: flex; }
-  input {
-    padding: 11px; margin-bottom: 10px; background: #111;
-    border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px;
-  }
+  input { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
   input:focus { outline: none; border-color: #e53935; }
   .error { color: #ff5252; font-size: 14px; min-height: 18px; margin-bottom: 8px; text-align: center; }
-  .btn {
-    padding: 12px; background: #e53935; border: none; color: #fff;
-    border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%;
-  }
+  .btn { padding: 12px; background: #e53935; border: none; color: #fff; border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%; }
   .btn:hover { background: #c62828; }
   .btn.secondary { background: #333; }
   .btn.secondary:hover { background: #444; }
 
-  /* ---------- MENU ---------- */
+  /* MENU */
   #menu { align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
   #menu h1 { font-size: 40px; color: #e53935; letter-spacing: 2px; }
   #menu p { color: #aaa; margin-bottom: 20px; }
   #menu .menu-btns { width: 90%; max-width: 300px; display: flex; flex-direction: column; gap: 12px; }
 
-  /* ---------- GAME / MAP ---------- */
+  /* GAME */
   #game { flex-direction: column; height: 100vh; }
-  .topbar {
-    height: 52px; display: flex; align-items: center; justify-content: space-between;
-    padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333;
-  }
+  .topbar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333; }
   .topbar span { font-weight: bold; color: #e53935; }
   .topbar .btn { width: auto; padding: 8px 14px; font-size: 14px; }
   #map { flex: 1; width: 100%; }
+  .leaflet-tooltip { background: #1a1a1a; color: #fff; border: 1px solid #444; font-size: 13px; }
+
+  /* MODAL */
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .modal-bg.active { display: flex; }
+  .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 22px; width: 90%; max-width: 340px; color: #eee; }
+  .modal h2 { color: #e53935; margin-bottom: 12px; font-size: 20px; }
+  .modal p { margin-bottom: 8px; line-height: 1.4; }
+  .modal .btn { margin-bottom: 8px; }
 </style>
 </head>
 <body>
 
-<!-- ============ ЭКРАН: ВХОД / РЕГИСТРАЦИЯ ============ -->
+<!-- ВХОД / РЕГИСТРАЦИЯ -->
 <div id="auth" class="screen active">
   <div class="card">
     <h1>РАЕН БАЛАШИХА</h1>
@@ -77,7 +62,6 @@
       <button id="tabRegister">Регистрация</button>
     </div>
 
-    <!-- Вход -->
     <form id="loginForm" class="active">
       <input type="email" id="loginEmail" placeholder="Почта" required>
       <input type="password" id="loginPass" placeholder="Пароль" required>
@@ -85,7 +69,6 @@
       <button type="submit" class="btn">Войти</button>
     </form>
 
-    <!-- Регистрация -->
     <form id="registerForm">
       <input type="text" id="regNick" placeholder="Никнейм" required>
       <input type="text" id="regCallsign" placeholder="Позывной" required>
@@ -97,7 +80,7 @@
   </div>
 </div>
 
-<!-- ============ ЭКРАН: МЕНЮ ============ -->
+<!-- МЕНЮ -->
 <div id="menu" class="screen">
   <h1>РАЕН</h1>
   <p id="welcome"></p>
@@ -107,7 +90,7 @@
   </div>
 </div>
 
-<!-- ============ ЭКРАН: ИГРА (КАРТА) ============ -->
+<!-- ИГРА -->
 <div id="game" class="screen">
   <div class="topbar">
     <span>Балашиха</span>
@@ -116,27 +99,93 @@
   <div id="map"></div>
 </div>
 
+<!-- МОДАЛЬНОЕ ОКНО -->
+<div id="modalBg" class="modal-bg">
+  <div class="modal" id="modalBody"></div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
-// ---------- ХРАНИЛИЩЕ ----------
+// ================= ТЕРРИТОРИИ =================
+// Координаты в формате [долгота, широта], как в GeoJSON.
+// enemy — id территории, с которой идёт война (или null).
+const MAX_MEMBERS = 30;
+
+const TERRITORIES = [
+  {
+    id: 'univ', name: 'Универсам', color: '#2e7d32', enemy: 'chainiki',
+    coords: [
+      [37.9715151,55.830116],[37.9716861,55.8329778],[37.9720623,55.8335059],[37.9724042,55.8338516],
+      [37.9726094,55.8341973],[37.972712,55.8347158],[37.9729514,55.8357145],[37.9731395,55.8358489],
+      [37.9775388,55.8361843],[37.9799971,55.8363796],[37.9813945,55.8364301],[37.9827356,55.8363598],
+      [37.9827506,55.8362197],[37.9771303,55.8300152],[37.9715188,55.8301033],[37.971515,55.830116]
+    ]
+  },
+  {
+    id: 'kino', name: 'Кинопленка', color: '#7b1fa2', enemy: null,
+    coords: [
+      [37.9714177,55.8302632],[37.9692348,55.8303511],[37.9675265,55.8303876],[37.9674011,55.8303437],
+      [37.9673033,55.8302627],[37.967233,55.8301454],[37.9669636,55.8301165],[37.9668064,55.8301315],
+      [37.9667602,55.8301906],[37.9666925,55.8302589],[37.9661644,55.8301113],[37.9660459,55.8297948],
+      [37.9652847,55.8296129],[37.9650373,55.8297665],[37.9648258,55.8297606],[37.9636098,55.8293478],
+      [37.9617242,55.8313916],[37.9616905,55.831552],[37.961707,55.8316989],[37.961803,55.8318712],
+      [37.9620437,55.8320218],[37.9643258,55.8331658],[37.9654062,55.8334938],[37.9658121,55.8335949],
+      [37.9664041,55.8336715],[37.9671743,55.8337178],[37.9681281,55.8337385],[37.9717806,55.8335139],
+      [37.9714178,55.8302633],[37.9713574,55.8302547]
+    ]
+  },
+  {
+    id: 'chainiki', name: 'Чайники', color: '#757575', enemy: 'univ',
+    coords: [
+      [37.9713474,55.8302366],[37.96923,55.8302822],[37.967532,55.8302476],[37.9672775,55.8300489],
+      [37.9668316,55.8299979],[37.9664408,55.830046],[37.9662634,55.829985],[37.9660489,55.8297247],
+      [37.9662013,55.8295276],[37.9655731,55.8293228],[37.9640728,55.8289181],[37.9668417,55.8259621],
+      [37.9672796,55.8260639],[37.9689658,55.82604],[37.9692017,55.8258553],[37.9699848,55.8258091],
+      [37.97095,55.8257788],[37.9711901,55.8258002],[37.9713471,55.8302366],[37.9712636,55.8302028]
+    ]
+  }
+];
+
+// ================= ХРАНИЛИЩЕ =================
 const USERS_KEY = 'raen_users';
 const SESSION_KEY = 'raen_session';
+const GROUPS_KEY = 'raen_groups';
 
-function getUsers() {
-  return JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
+function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); }
+function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
+function setUser(email, data) {
+  const u = getUsers();
+  u[email] = { ...u[email], ...data };
+  saveUsers(u);
 }
-function saveUsers(users) {
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
-}
+function me() { return getUsers()[currentEmail]; }
 
-// Хэш пароля (SHA-256). Если браузер не поддерживает crypto.subtle, пароль просто сохраняется как есть.
+function loadGroups() {
+  const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) || 'null');
+  if (saved) return saved;
+  const g = {};
+  TERRITORIES.forEach(t => g[t.id] = { leader: null, members: [], enemy: t.enemy });
+  return g;
+}
+let groups = loadGroups();
+function saveGroups() { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); }
+
 async function hashPass(text) {
   if (!window.crypto || !crypto.subtle) return text;
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// ---------- ЭКРАНЫ ----------
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const territoryById = id => TERRITORIES.find(t => t.id === id);
+const groupName = id => id ? territoryById(id).name : '';
+function displayName(email) {
+  const u = getUsers()[email];
+  return u ? `${u.nick} (${u.callsign})` : '—';
+}
+
+// ================= ЭКРАНЫ =================
+let currentEmail = null;
 const screens = {
   auth: document.getElementById('auth'),
   menu: document.getElementById('menu'),
@@ -147,7 +196,7 @@ function showScreen(name) {
   screens[name].classList.add('active');
 }
 
-// ---------- ВКЛАДКИ ВХОД / РЕГИСТРАЦИЯ ----------
+// ================= ВКЛАДКИ =================
 const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
 const loginForm = document.getElementById('loginForm');
@@ -162,7 +211,7 @@ tabRegister.onclick = () => {
   registerForm.classList.add('active'); loginForm.classList.remove('active');
 };
 
-// ---------- РЕГИСТРАЦИЯ ----------
+// ================= РЕГИСТРАЦИЯ =================
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('regError');
@@ -173,30 +222,20 @@ registerForm.addEventListener('submit', async (e) => {
   const email = document.getElementById('regEmail').value.trim().toLowerCase();
   const pass = document.getElementById('regPass').value;
 
-  if (!nick || !callsign || !email || !pass) {
-    err.textContent = 'Заполните все поля'; return;
-  }
-  if (pass.length < 6) {
-    err.textContent = 'Пароль минимум 6 символов'; return;
-  }
+  if (!nick || !callsign || !email || !pass) { err.textContent = 'Заполните все поля'; return; }
+  if (pass.length < 6) { err.textContent = 'Пароль минимум 6 символов'; return; }
 
   const users = getUsers();
-  if (users[email]) {
-    err.textContent = 'Такая почта уже зарегистрирована'; return;
-  }
+  if (users[email]) { err.textContent = 'Такая почта уже зарегистрирована'; return; }
 
-  users[email] = {
-    nick,
-    callsign,
-    pass: await hashPass(pass)
-  };
+  users[email] = { nick, callsign, pass: await hashPass(pass), group: null, role: null };
   saveUsers(users);
   localStorage.setItem(SESSION_KEY, email);
   registerForm.reset();
   openMenu(email);
 });
 
-// ---------- ВХОД ----------
+// ================= ВХОД =================
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('loginError');
@@ -205,130 +244,189 @@ loginForm.addEventListener('submit', async (e) => {
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const pass = document.getElementById('loginPass').value;
 
-  const users = getUsers();
-  const user = users[email];
-  if (!user) {
-    err.textContent = 'Пользователь не найден'; return;
-  }
-  if (user.pass !== await hashPass(pass)) {
-    err.textContent = 'Неверный пароль'; return;
-  }
+  const user = getUsers()[email];
+  if (!user) { err.textContent = 'Пользователь не найден'; return; }
+  if (user.pass !== await hashPass(pass)) { err.textContent = 'Неверный пароль'; return; }
 
   localStorage.setItem(SESSION_KEY, email);
   loginForm.reset();
   openMenu(email);
 });
 
-// ---------- МЕНЮ ----------
+// ================= МЕНЮ =================
 function openMenu(email) {
+  currentEmail = email;
   const user = getUsers()[email];
-  document.getElementById('welcome').textContent =
-    `Привет, ${user.nick} (${user.callsign})`;
+  const g = user.group ? ` | группировка: ${groupName(user.group)}` : '';
+  document.getElementById('welcome').textContent = `Привет, ${user.nick} (${user.callsign})${g}`;
   showScreen('menu');
 }
 
 document.getElementById('btnLogout').onclick = () => {
   localStorage.removeItem(SESSION_KEY);
+  currentEmail = null;
   showScreen('auth');
 };
 
-// ---------- УЛИЦЫ ----------
-// Координаты в формате GeoJSON: [долгота, широта]
-function line(coords) {
-  return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } };
+// ================= МОДАЛКА =================
+const modalBg = document.getElementById('modalBg');
+const modalBody = document.getElementById('modalBody');
+let modalActs = {};
+
+modalBody.addEventListener('click', e => {
+  const a = e.target.dataset.act;
+  if (a && modalActs[a]) modalActs[a]();
+});
+
+function openModal(html, acts = {}) {
+  modalActs = { close: closeModal, ...acts };
+  modalBody.innerHTML = html;
+  modalBg.classList.add('active');
+}
+function closeModal() { modalBg.classList.remove('active'); }
+function msg(text) {
+  openModal(`<p>${esc(text)}</p><button class="btn" data-act="close">OK</button>`);
 }
 
-const streets = [
-  {
-    name: 'Валешы',
-    color: '#2e7d32', // зелёный
-    features: [
-      line([
-        [37.9714496, 55.8300703], [37.9710303, 55.830327], [37.9692844, 55.830327],
-        [37.9673273, 55.8304147], [37.9671854, 55.8300913], [37.966885, 55.8301974],
-        [37.9667743, 55.8304368], [37.9661701, 55.8301336], [37.9658531, 55.8299662],
-        [37.9652724, 55.829683], [37.9637479, 55.8293362], [37.9618353, 55.8312086],
-        [37.9617366, 55.8317995], [37.9652758, 55.8335933], [37.9671672, 55.8337622],
-        [37.9717813, 55.8335267], [37.9714563, 55.8327665], [37.9714828, 55.8300703],
-        [37.9752788, 55.8264326]
-      ])
-    ]
-  },
-  {
-    name: 'Фамовские',
-    color: '#e53935', // красный
-    features: [
-      line([
-        [37.9714496, 55.8300703], [37.9710303, 55.830327], [37.9692844, 55.830327],
-        [37.9673273, 55.8304147], [37.9671854, 55.8300913], [37.966885, 55.8301974],
-        [37.9667743, 55.8304368]
-      ]),
-      line([
-        [37.9712497, 55.8290275], [37.9694813, 55.8290932], [37.9650092, 55.8277883],
-        [37.9667723, 55.8258655], [37.9710659, 55.8256919], [37.9712978, 55.829039],
-        [37.9892694, 55.8313284]
-      ])
-    ]
-  },
-  {
-    name: 'Киновалы',
-    color: '#8e24aa', // фиолетовый
-    features: [
-      line([
-        [37.9712497, 55.8290275], [37.9694813, 55.8290932], [37.9650092, 55.8277883],
-        [37.9667723, 55.8258655], [37.9710659, 55.8256919], [37.9712978, 55.829039],
-        [37.9892694, 55.8313284]
-      ])
-    ]
-  }
-];
+// ================= ЛОГИКА ГРУППИРОВОК =================
+function tooltipHtml(t) {
+  const g = groups[t.id];
+  const leader = g.leader ? esc(displayName(g.leader)) : 'нет';
+  const enemy = g.enemy ? esc(groupName(g.enemy)) : 'ни с кем';
+  return `<b>${esc(t.name)}</b><br>Лидер: ${leader}<br>Воюет с: ${enemy}`;
+}
 
-// ---------- ИГРА / КАРТА ----------
+function onTerritoryDblClick(t) {
+  const user = me();
+  if (user.group === t.id) return showOwnGroup(t);
+  if (user.group) return msg(`Вы уже в группировке «${groupName(user.group)}». Сначала выйдите из неё.`);
+  showJoinMenu(t);
+}
+
+function showJoinMenu(t) {
+  const g = groups[t.id];
+  openModal(`
+    <h2>${esc(t.name)}</h2>
+    <p>Вступить как:</p>
+    <button class="btn" data-act="leader">Главный${g.leader ? ' (занят)' : ''}</button>
+    <button class="btn secondary" data-act="member">Шпана</button>
+    <button class="btn secondary" data-act="close">Отмена</button>
+  `, {
+    leader: () => joinGroup(t, 'leader'),
+    member: () => joinGroup(t, 'member')
+  });
+}
+
+function joinGroup(t, role) {
+  const g = groups[t.id];
+  const email = currentEmail;
+
+  if (role === 'leader') {
+    if (g.leader) return msg(`Главный уже есть: ${displayName(g.leader)}. Вступите как шпана.`);
+    g.leader = email;
+  } else {
+    if (g.members.length >= MAX_MEMBERS) return msg('В группировке нет мест (максимум 30).');
+  }
+
+  g.members.push(email);
+  saveGroups();
+  setUser(email, { group: t.id, role });
+  msg(`Вы вступили в «${t.name}» как ${role === 'leader' ? 'главный' : 'шпана'}.`);
+}
+
+function showOwnGroup(t) {
+  const g = groups[t.id];
+  const isLeader = me().role === 'leader';
+  const enemy = g.enemy ? groupName(g.enemy) : 'ни с кем';
+
+  let html = `
+    <h2>${esc(t.name)}</h2>
+    <p>Лидер: ${g.leader ? esc(displayName(g.leader)) : 'нет'}</p>
+    <p>Людей: ${g.members.length} / ${MAX_MEMBERS}</p>
+    <p>Воюет с: ${esc(enemy)}</p>
+    <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>
+  `;
+  const acts = { leave: () => leaveGroup(t) };
+
+  if (isLeader) {
+    html += `
+      <button class="btn" data-act="trade">Торговля</button>
+      <button class="btn" data-act="war">Война</button>
+      <button class="btn" data-act="diplo">Дипломатия</button>
+    `;
+    acts.trade = () => msg('Торговля: скоро');
+    acts.war = () => msg('Война: скоро');
+    acts.diplo = () => msg('Дипломатия: скоро');
+  } else {
+    const label = g.leader ? `Лидер: ${displayName(g.leader)} (стать лидером)` : 'Стать главным';
+    html += `<button class="btn secondary" data-act="takeover">${esc(label)}</button>`;
+    acts.takeover = () => takeLeadership(t);
+  }
+
+  html += `<button class="btn secondary" data-act="leave">Выйти из группировки</button>`;
+  openModal(html, acts);
+}
+
+function takeLeadership(t) {
+  if (!confirm('Стать главным этой группировки?')) return;
+  const g = groups[t.id];
+  if (g.leader) setUser(g.leader, { role: 'member' });
+  g.leader = currentEmail;
+  saveGroups();
+  setUser(currentEmail, { role: 'leader' });
+  showOwnGroup(t);
+}
+
+function leaveGroup(t) {
+  const g = groups[t.id];
+  const email = currentEmail;
+  g.members = g.members.filter(e => e !== email);
+  if (g.leader === email) g.leader = null;
+  saveGroups();
+  setUser(email, { group: null, role: null });
+  msg(`Вы вышли из «${t.name}».`);
+}
+
+// ================= КАРТА =================
 let map = null;
 
 document.getElementById('btnPlay').onclick = () => {
   showScreen('game');
   initMap();
 };
-
-document.getElementById('btnBack').onclick = () => {
-  showScreen('menu');
-};
+document.getElementById('btnBack').onclick = () => showScreen('menu');
 
 function initMap() {
-  if (!map) {
-    // Центр на улицах Валешы, Фамовские, Киновалы
-    map = L.map('map').setView([55.8300, 37.9730], 15);
+  if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
 
-    // Спутниковые снимки Esri World Imagery, без API-ключа
-    L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      {
-        maxZoom: 19,
-        attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics'
-      }
-    ).addTo(map);
+  // doubleClickZoom выключен, чтобы двойной клик открывал меню, а не зумил карту
+  map = L.map('map', { doubleClickZoom: false }).setView([55.8325, 37.9710], 16);
 
-    // Рисуем улицы
-    streets.forEach(s => {
-      L.geoJSON(
-        { type: 'FeatureCollection', features: s.features },
-        { style: () => ({ color: s.color, weight: 8, opacity: 0.9 }) }
-      ).addTo(map).bindPopup(s.name);
-    });
-  }
-  // Чтобы карта правильно отрисовалась после показа экрана
+  L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics' }
+  ).addTo(map);
+
+  TERRITORIES.forEach(t => {
+    const poly = L.polygon(t.coords.map(c => [c[1], c[0]]), {
+      color: t.color,
+      weight: 2,
+      fillColor: t.color,
+      fillOpacity: 0.85
+    }).addTo(map);
+
+    poly.bindTooltip(() => tooltipHtml(t), { sticky: true });
+    poly.on('dblclick', () => onTerritoryDblClick(t));
+  });
+
   setTimeout(() => map.invalidateSize(), 100);
 }
 
-// ---------- СТАРТ: если уже был вход, сразу в меню ----------
+// ================= СТАРТ =================
 (function init() {
   const session = localStorage.getItem(SESSION_KEY);
-  if (session && getUsers()[session]) {
-    openMenu(session);
-  } else {
-    showScreen('auth');
-  }
+  if (session && getUsers()[session]) openMenu(session);
+  else showScreen('auth');
 })();
 </script>
 </body>
