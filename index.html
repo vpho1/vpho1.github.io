@@ -46,3 +46,231 @@
     border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%;
   }
   .btn:hover { background: #c62828; }
+  .btn.secondary { background: #333; }
+  .btn.secondary:hover { background: #444; }
+
+  /* ---------- MENU ---------- */
+  #menu { align-items: center; justify-content: center; flex-direction: column; gap: 14px; }
+  #menu h1 { font-size: 40px; color: #e53935; letter-spacing: 2px; }
+  #menu p { color: #aaa; margin-bottom: 20px; }
+  #menu .menu-btns { width: 90%; max-width: 300px; display: flex; flex-direction: column; gap: 12px; }
+
+  /* ---------- GAME / MAP ---------- */
+  #game { flex-direction: column; height: 100vh; }
+  .topbar {
+    height: 52px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333;
+  }
+  .topbar span { font-weight: bold; color: #e53935; }
+  .topbar .btn { width: auto; padding: 8px 14px; font-size: 14px; }
+  #map { flex: 1; width: 100%; }
+</style>
+</head>
+<body>
+
+<!-- ============ ЭКРАН: ВХОД / РЕГИСТРАЦИЯ ============ -->
+<div id="auth" class="screen active">
+  <div class="card">
+    <h1>РАЕН БАЛАШИХА</h1>
+    <div class="tabs">
+      <button id="tabLogin" class="active">Вход</button>
+      <button id="tabRegister">Регистрация</button>
+    </div>
+
+    <!-- Вход -->
+    <form id="loginForm" class="active">
+      <input type="email" id="loginEmail" placeholder="Почта" required>
+      <input type="password" id="loginPass" placeholder="Пароль" required>
+      <div class="error" id="loginError"></div>
+      <button type="submit" class="btn">Войти</button>
+    </form>
+
+    <!-- Регистрация -->
+    <form id="registerForm">
+      <input type="text" id="regNick" placeholder="Никнейм" required>
+      <input type="text" id="regCallsign" placeholder="Позывной" required>
+      <input type="email" id="regEmail" placeholder="Почта" required>
+      <input type="password" id="regPass" placeholder="Пароль (минимум 6 символов)" required>
+      <div class="error" id="regError"></div>
+      <button type="submit" class="btn">Зарегистрироваться</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ ЭКРАН: МЕНЮ ============ -->
+<div id="menu" class="screen">
+  <h1>РАЕН</h1>
+  <p id="welcome"></p>
+  <div class="menu-btns">
+    <button class="btn" id="btnPlay">Начать игру</button>
+    <button class="btn secondary" id="btnLogout">Выйти</button>
+  </div>
+</div>
+
+<!-- ============ ЭКРАН: ИГРА (КАРТА) ============ -->
+<div id="game" class="screen">
+  <div class="topbar">
+    <span>Балашиха</span>
+    <button class="btn secondary" id="btnBack">← В меню</button>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+// ---------- ХРАНИЛИЩЕ ----------
+const USERS_KEY = 'raen_users';
+const SESSION_KEY = 'raen_session';
+
+function getUsers() {
+  return JSON.parse(localStorage.getItem(USERS_KEY) || '{}');
+}
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+
+// Хэш пароля (SHA-256). Если браузер не поддерживает crypto.subtle, пароль просто сохраняется как есть.
+async function hashPass(text) {
+  if (!window.crypto || !crypto.subtle) return text;
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ---------- ЭКРАНЫ ----------
+const screens = {
+  auth: document.getElementById('auth'),
+  menu: document.getElementById('menu'),
+  game: document.getElementById('game')
+};
+function showScreen(name) {
+  Object.values(screens).forEach(s => s.classList.remove('active'));
+  screens[name].classList.add('active');
+}
+
+// ---------- ВКЛАДКИ ВХОД / РЕГИСТРАЦИЯ ----------
+const tabLogin = document.getElementById('tabLogin');
+const tabRegister = document.getElementById('tabRegister');
+const loginForm = document.getElementById('loginForm');
+const registerForm = document.getElementById('registerForm');
+
+tabLogin.onclick = () => {
+  tabLogin.classList.add('active'); tabRegister.classList.remove('active');
+  loginForm.classList.add('active'); registerForm.classList.remove('active');
+};
+tabRegister.onclick = () => {
+  tabRegister.classList.add('active'); tabLogin.classList.remove('active');
+  registerForm.classList.add('active'); loginForm.classList.remove('active');
+};
+
+// ---------- РЕГИСТРАЦИЯ ----------
+registerForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('regError');
+  err.textContent = '';
+
+  const nick = document.getElementById('regNick').value.trim();
+  const callsign = document.getElementById('regCallsign').value.trim();
+  const email = document.getElementById('regEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('regPass').value;
+
+  if (!nick || !callsign || !email || !pass) {
+    err.textContent = 'Заполните все поля'; return;
+  }
+  if (pass.length < 6) {
+    err.textContent = 'Пароль минимум 6 символов'; return;
+  }
+
+  const users = getUsers();
+  if (users[email]) {
+    err.textContent = 'Такая почта уже зарегистрирована'; return;
+  }
+
+  users[email] = {
+    nick,
+    callsign,
+    pass: await hashPass(pass)
+  };
+  saveUsers(users);
+  localStorage.setItem(SESSION_KEY, email);
+  registerForm.reset();
+  openMenu(email);
+});
+
+// ---------- ВХОД ----------
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const err = document.getElementById('loginError');
+  err.textContent = '';
+
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+
+  const users = getUsers();
+  const user = users[email];
+  if (!user) {
+    err.textContent = 'Пользователь не найден'; return;
+  }
+  if (user.pass !== await hashPass(pass)) {
+    err.textContent = 'Неверный пароль'; return;
+  }
+
+  localStorage.setItem(SESSION_KEY, email);
+  loginForm.reset();
+  openMenu(email);
+});
+
+// ---------- МЕНЮ ----------
+function openMenu(email) {
+  const user = getUsers()[email];
+  document.getElementById('welcome').textContent =
+    `Привет, ${user.nick} (${user.callsign})`;
+  showScreen('menu');
+}
+
+document.getElementById('btnLogout').onclick = () => {
+  localStorage.removeItem(SESSION_KEY);
+  showScreen('auth');
+};
+
+// ---------- ИГРА / КАРТА ----------
+let map = null;
+
+document.getElementById('btnPlay').onclick = () => {
+  showScreen('game');
+  initMap();
+};
+
+document.getElementById('btnBack').onclick = () => {
+  showScreen('menu');
+};
+
+function initMap() {
+  if (!map) {
+    // Центр Балашихи, микрорайон Авиаторов
+    map = L.map('map').setView([55.8000, 37.9400], 14);
+
+    // Спутниковые снимки Esri World Imagery, без API-ключа
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics'
+      }
+    ).addTo(map);
+  }
+  // Чтобы карта правильно отрисовалась после показа экрана
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+// ---------- СТАРТ: если уже был вход, сразу в меню ----------
+(function init() {
+  const session = localStorage.getItem(SESSION_KEY);
+  if (session && getUsers()[session]) {
+    openMenu(session);
+  } else {
+    showScreen('auth');
+  }
+})();
+</script>
+</body>
+</html>
