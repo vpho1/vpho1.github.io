@@ -11,7 +11,6 @@
   .screen { display: none; min-height: 100vh; }
   .screen.active { display: flex; }
 
-  /* AUTH */
   #auth { align-items: center; justify-content: center; }
   .card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 28px; width: 90%; max-width: 360px; }
   .card h1 { text-align: center; margin-bottom: 20px; color: #e53935; letter-spacing: 1px; }
@@ -20,22 +19,20 @@
   .tabs button.active { color: #fff; border-bottom-color: #e53935; }
   form { display: none; flex-direction: column; }
   form.active { display: flex; }
-  input, select { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
-  input:focus, select:focus { outline: none; border-color: #e53935; }
+  input { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; width: 100%; }
+  input:focus { outline: none; border-color: #e53935; }
   .error { color: #ff5252; font-size: 14px; min-height: 18px; margin-bottom: 8px; text-align: center; }
   .btn { padding: 12px; background: #e53935; border: none; color: #fff; border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 8px; }
   .btn:hover { background: #c62828; }
   .btn.secondary { background: #333; }
   .btn.secondary:hover { background: #444; }
 
-  /* MENU */
   #menu { align-items: center; justify-content: center; flex-direction: column; gap: 10px; padding: 20px; }
   #menu h1 { font-size: 40px; color: #e53935; letter-spacing: 2px; }
   #menu p { color: #aaa; text-align: center; }
   #menu .menu-btns { width: 90%; max-width: 300px; display: flex; flex-direction: column; gap: 12px; }
   #invites { width: 90%; max-width: 300px; }
 
-  /* GAME */
   #game { flex-direction: column; height: 100vh; position: relative; }
   .topbar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333; }
   .topbar span { font-weight: bold; color: #e53935; }
@@ -49,7 +46,6 @@
   #hint .hidden { display: none; }
   .leaflet-tooltip { background: #1a1a1a; color: #fff; border: 1px solid #444; font-size: 13px; }
 
-  /* BATTLE PEOPLE */
   .man { position: relative; width: 8px; height: 14px; }
   .man::before { content: ''; position: absolute; top: 0; left: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
   .man::after { content: ''; position: absolute; top: 5px; left: 0; width: 8px; height: 9px; border-radius: 2px; background: currentColor; }
@@ -58,13 +54,12 @@
   @keyframes marchR { from { transform: translateX(-2px); } to { transform: translateX(3px); } }
   @keyframes marchL { from { transform: translateX(2px); } to { transform: translateX(-3px); } }
 
-  /* MODAL */
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
   .modal-bg.active { display: flex; }
   .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 22px; width: 90%; max-width: 360px; max-height: 90vh; overflow-y: auto; color: #eee; }
   .modal h2 { color: #e53935; margin-bottom: 12px; font-size: 20px; }
   .modal p { margin-bottom: 8px; line-height: 1.4; }
-  .modal input, .modal select { width: 100%; }
+  .modal select { width: 100%; padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
   .inv { background: #222; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
   .inv p { margin-bottom: 8px; font-size: 14px; }
   .inv .btn { width: auto; display: inline-block; padding: 8px 12px; font-size: 14px; margin-right: 6px; }
@@ -72,7 +67,6 @@
 </head>
 <body>
 
-<!-- ВХОД / РЕГИСТРАЦИЯ -->
 <div id="auth" class="screen active">
   <div class="card">
     <h1>РАЕН БАЛАШИХА</h1>
@@ -97,7 +91,6 @@
   </div>
 </div>
 
-<!-- МЕНЮ -->
 <div id="menu" class="screen">
   <h1>РАЕН</h1>
   <p id="welcome"></p>
@@ -110,7 +103,6 @@
   </div>
 </div>
 
-<!-- ИГРА -->
 <div id="game" class="screen">
   <div class="topbar">
     <span>Балашиха</span>
@@ -127,7 +119,6 @@
   </div>
 </div>
 
-<!-- МОДАЛЬНОЕ ОКНО -->
 <div id="modalBg" class="modal-bg">
   <div class="modal" id="modalBody"></div>
 </div>
@@ -142,30 +133,55 @@ const HOSPITAL_TIME = 30 * 1000;
 const START_MONEY = 1000;
 const SECTOR_R = 35;
 
-const GROUP_DEFS = [
-  { id: 'univ', name: 'Универсам', color: '#2e7d32' },
-  { id: 'kino', name: 'Кинопленка', color: '#7b1fa2' },
-  { id: 'chainiki', name: 'Чайники', color: '#757575' }
+// Стартовые территории (координаты [долгота, широта]).
+// Главный может нарисовать свою заново, кнопкой «Нарисовать территорию».
+const DEFS = [
+  {
+    id: 'univ', name: 'Универсам', color: '#2e7d32',
+    coords: [
+      [37.9715151,55.830116],[37.9716861,55.8329778],[37.9720623,55.8335059],[37.9724042,55.8338516],
+      [37.9726094,55.8341973],[37.972712,55.8347158],[37.9729514,55.8357145],[37.9731395,55.8358489],
+      [37.9775388,55.8361843],[37.9799971,55.8363796],[37.9813945,55.8364301],[37.9827356,55.8363598],
+      [37.9827506,55.8362197],[37.9771303,55.8300152],[37.9715188,55.8301033],[37.971515,55.830116]
+    ]
+  },
+  {
+    id: 'kino', name: 'Кинопленка', color: '#7b1fa2',
+    coords: [
+      [37.9714177,55.8302632],[37.9692348,55.8303511],[37.9675265,55.8303876],[37.9674011,55.8303437],
+      [37.9673033,55.8302627],[37.967233,55.8301454],[37.9669636,55.8301165],[37.9668064,55.8301315],
+      [37.9667602,55.8301906],[37.9666925,55.8302589],[37.9661644,55.8301113],[37.9660459,55.8297948],
+      [37.9652847,55.8296129],[37.9650373,55.8297665],[37.9648258,55.8297606],[37.9636098,55.8293478],
+      [37.9617242,55.8313916],[37.9616905,55.831552],[37.961707,55.8316989],[37.961803,55.8318712],
+      [37.9620437,55.8320218],[37.9643258,55.8331658],[37.9654062,55.8334938],[37.9658121,55.8335949],
+      [37.9664041,55.8336715],[37.9671743,55.8337178],[37.9681281,55.8337385],[37.9717806,55.8335139],
+      [37.9714178,55.8302633],[37.9713574,55.8302547]
+    ]
+  },
+  {
+    id: 'chainiki', name: 'Чайники', color: '#757575',
+    coords: [
+      [37.9713474,55.8302366],[37.96923,55.8302822],[37.967532,55.8302476],[37.9672775,55.8300489],
+      [37.9668316,55.8299979],[37.9664408,55.830046],[37.9662634,55.829985],[37.9660489,55.8297247],
+      [37.9662013,55.8295276],[37.9655731,55.8293228],[37.9640728,55.8289181],[37.9668417,55.8259621],
+      [37.9672796,55.8260639],[37.9689658,55.82604],[37.9692017,55.8258553],[37.9699848,55.8258091],
+      [37.97095,55.8257788],[37.9711901,55.8258002],[37.9713471,55.8302366],[37.9712636,55.8302028]
+    ]
+  }
 ];
 
-// ================= ХРАНИЛИЩЕ =================
-const USERS_KEY = 'raen_users';
-const SESSION_KEY = 'raen_session';
-const GROUPS_KEY = 'raen_groups';
-const SECTORS_KEY = 'raen_sectors';
+// ================= ХРАНИЛИЩЕ (в браузере) =================
+const K_USERS = 'raen2_users', K_SESSION = 'raen2_session', K_GROUPS = 'raen2_groups', K_SECTORS = 'raen2_sectors';
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } };
 
-function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); }
-function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
-function setUser(email, data) {
-  const u = getUsers();
-  u[email] = { ...u[email], ...data };
-  saveUsers(u);
-}
-function me() { return getUsers()[currentEmail]; }
+let users = load(K_USERS, {});
+let sectors = load(K_SECTORS, []);
+let groups = loadGroups();
+let currentEmail = null;
 
 function loadGroups() {
-  const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) || '{}');
-  GROUP_DEFS.forEach(d => {
+  const saved = load(K_GROUPS, {});
+  DEFS.forEach(d => {
     const g = saved[d.id] || {};
     saved[d.id] = {
       leader: g.leader || null,
@@ -173,16 +189,18 @@ function loadGroups() {
       enemies: g.enemies || [],
       challenges: g.challenges || [],
       mercs: g.mercs || [],
-      letters: g.letters || [],   // письма о мире, приходят лидеру
-      zone: g.zone || null
+      letters: g.letters || [],
+      zone: g.zone !== undefined ? g.zone : d.coords.map(c => [c[1], c[0]])
     };
   });
   return saved;
 }
-let groups = loadGroups();
-let sectors = JSON.parse(localStorage.getItem(SECTORS_KEY) || '[]');
-function saveGroups() { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); }
-function saveSectors() { localStorage.setItem(SECTORS_KEY, JSON.stringify(sectors)); }
+
+function saveAll() {
+  localStorage.setItem(K_USERS, JSON.stringify(users));
+  localStorage.setItem(K_GROUPS, JSON.stringify(groups));
+  localStorage.setItem(K_SECTORS, JSON.stringify(sectors));
+}
 
 async function hashPass(text) {
   if (!window.crypto || !crypto.subtle) return text;
@@ -191,31 +209,26 @@ async function hashPass(text) {
 }
 
 // ================= ПОМОЩНИКИ =================
-let currentEmail = null;
+const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rnd = () => Math.random().toString(36).slice(2, 9);
-const gdef = id => GROUP_DEFS.find(d => d.id === id);
-const groupName = id => id ? gdef(id).name : '';
-const colorOf = id => gdef(id).color;
-function displayName(email) {
-  const u = getUsers()[email];
-  return u ? `${u.nick} (${u.callsign})` : '—';
-}
-function fmtTime(ts) {
-  return new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-function inHospital(email) {
-  const u = getUsers()[email];
-  return !!u && (u.hospitalUntil || 0) > Date.now();
-}
-function activeMercs(gid) {
+const me = () => users[currentEmail];
+const gdef = id => DEFS.find(d => d.id === id);
+const gname = id => gdef(id).name;
+const gcolor = id => gdef(id).color;
+const displayName = e => users[e] ? `${users[e].nick} (${users[e].callsign})` : '—';
+const leaderName = gid => groups[gid].leader ? esc(displayName(groups[gid].leader)) : 'нет';
+const fmtTime = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const inHospital = e => !!users[e] && (users[e].hospitalUntil || 0) > Date.now();
+
+function cleanMercs(gid) {
   const g = groups[gid];
   g.mercs = g.mercs.filter(m => m.exp > Date.now());
-  return g.mercs.length;
+  return g.mercs;
 }
 function available(gid) {
-  const g = groups[gid];
-  return g.members.filter(e => !inHospital(e)).length + activeMercs(gid);
+  const free = groups[gid].members.filter(e => users[e] && !inHospital(e)).length;
+  return free + cleanMercs(gid).length;
 }
 function sendToHospital(gid, count) {
   const g = groups[gid];
@@ -223,170 +236,55 @@ function sendToHospital(gid, count) {
   let left = count;
   for (const e of g.members) {
     if (left <= 0) break;
-    if (inHospital(e)) continue;
-    setUser(e, { hospitalUntil: until });
+    if (!users[e] || inHospital(e)) continue;
+    users[e].hospitalUntil = until;
     left--;
   }
-  activeMercs(gid);
-  const k = Math.min(left, g.mercs.length);
-  g.mercs.splice(0, k);
+  const mercs = cleanMercs(gid);
+  mercs.splice(0, Math.min(left, mercs.length));
 }
 function endWar(a, b) {
   groups[a].enemies = groups[a].enemies.filter(x => x !== b);
   groups[b].enemies = groups[b].enemies.filter(x => x !== a);
   groups[a].challenges = groups[a].challenges.filter(c => c.from !== b);
   groups[b].challenges = groups[b].challenges.filter(c => c.from !== a);
-  saveGroups();
+}
+function captureSector(lat, lng, owner) {
+  sectors.push({ id: rnd(), lat, lng, owner });
+}
+function distM(lat1, lng1, lat2, lng2) {
+  const dy = (lat2 - lat1) * 111320;
+  const dx = (lng2 - lng1) * 111320 * Math.cos(lat1 * Math.PI / 180);
+  return Math.hypot(dx, dy);
+}
+function inPoly(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function ownerAt(lat, lng) {
+  for (let i = sectors.length - 1; i >= 0; i--) {
+    const s = sectors[i];
+    if (distM(lat, lng, s.lat, s.lng) <= SECTOR_R) return s.owner;
+  }
+  for (const d of DEFS) {
+    const z = groups[d.id].zone;
+    if (z && inPoly(lat, lng, z)) return d.id;
+  }
+  return null;
 }
 
-// ================= ЭКРАНЫ =================
-const screens = {
-  auth: document.getElementById('auth'),
-  menu: document.getElementById('menu'),
-  game: document.getElementById('game')
-};
-function showScreen(name) {
+// ================= ЭКРАНЫ И МОДАЛКА =================
+const screens = { auth: $('auth'), menu: $('menu'), game: $('game') };
+function showScreen(n) {
   Object.values(screens).forEach(s => s.classList.remove('active'));
-  screens[name].classList.add('active');
+  screens[n].classList.add('active');
 }
 
-// ================= ВКЛАДКИ =================
-const tabLogin = document.getElementById('tabLogin');
-const tabRegister = document.getElementById('tabRegister');
-const loginForm = document.getElementById('loginForm');
-const registerForm = document.getElementById('registerForm');
-tabLogin.onclick = () => {
-  tabLogin.classList.add('active'); tabRegister.classList.remove('active');
-  loginForm.classList.add('active'); registerForm.classList.remove('active');
-};
-tabRegister.onclick = () => {
-  tabRegister.classList.add('active'); tabLogin.classList.remove('active');
-  registerForm.classList.add('active'); loginForm.classList.remove('active');
-};
-
-// ================= РЕГИСТРАЦИЯ / ВХОД =================
-registerForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const err = document.getElementById('regError');
-  err.textContent = '';
-  const nick = document.getElementById('regNick').value.trim();
-  const callsign = document.getElementById('regCallsign').value.trim();
-  const email = document.getElementById('regEmail').value.trim().toLowerCase();
-  const pass = document.getElementById('regPass').value;
-  if (!nick || !callsign || !email || !pass) { err.textContent = 'Заполните все поля'; return; }
-  if (pass.length < 6) { err.textContent = 'Пароль минимум 6 символов'; return; }
-  const users = getUsers();
-  if (users[email]) { err.textContent = 'Такая почта уже зарегистрирована'; return; }
-  users[email] = {
-    nick, callsign, pass: await hashPass(pass),
-    group: null, role: null, money: START_MONEY, invites: [], hospitalUntil: 0
-  };
-  saveUsers(users);
-  localStorage.setItem(SESSION_KEY, email);
-  registerForm.reset();
-  openMenu(email);
-});
-
-loginForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const err = document.getElementById('loginError');
-  err.textContent = '';
-  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
-  const pass = document.getElementById('loginPass').value;
-  const user = getUsers()[email];
-  if (!user) { err.textContent = 'Пользователь не найден'; return; }
-  if (user.pass !== await hashPass(pass)) { err.textContent = 'Неверный пароль'; return; }
-  localStorage.setItem(SESSION_KEY, email);
-  loginForm.reset();
-  openMenu(email);
-});
-
-// ================= МЕНЮ =================
-function openMenu(email) {
-  currentEmail = email;
-  const u = getUsers()[email];
-  if (u.money === undefined) setUser(email, { money: START_MONEY });
-  if (!u.invites) setUser(email, { invites: [] });
-  renderMenu();
-  showScreen('menu');
-}
-
-function renderMenu() {
-  const u = me();
-  const g = u.group ? ` | группировка: ${groupName(u.group)} (${u.role === 'leader' ? 'главный' : 'шпана'})` : '';
-  document.getElementById('welcome').textContent = `Привет, ${u.nick} (${u.callsign})${g}`;
-  const hosp = inHospital(currentEmail) ? ` | в больнице до ${fmtTime(u.hospitalUntil)}` : '';
-  document.getElementById('money').textContent = `Деньги: ${u.money} руб${hosp}`;
-  renderInvites();
-}
-
-function renderInvites() {
-  const u = me();
-  let h = '';
-  (u.invites || []).forEach((inv, i) => {
-    h += `<div class="inv">
-      <p>Приглашение в «${esc(groupName(inv.gid))}» от ${esc(inv.from)}</p>
-      <button class="btn" data-inv="acc:${i}">Принять</button>
-      <button class="btn secondary" data-inv="dec:${i}">Нет</button>
-    </div>`;
-  });
-  if (u.group && u.role === 'leader') {
-    const gr = groups[u.group];
-    if (gr.challenges.length) {
-      h += `<div class="inv">
-        <p>Вызовов на бой: ${gr.challenges.length}</p>
-        <button class="btn" data-inv="chal">Открыть вызовы</button>
-      </div>`;
-    }
-    if (gr.letters.length) {
-      h += `<div class="inv">
-        <p>Писем о мире: ${gr.letters.length}</p>
-        <button class="btn" data-inv="let">Открыть письма</button>
-      </div>`;
-    }
-  }
-  document.getElementById('invites').innerHTML = h;
-}
-
-document.getElementById('invites').addEventListener('click', e => {
-  const a = e.target.dataset.inv;
-  if (!a) return;
-  const [act, idx] = a.split(':');
-  if (act === 'acc') acceptInvite(+idx);
-  else if (act === 'dec') declineInvite(+idx);
-  else if (act === 'chal') showOwnGroup(me().group);
-  else if (act === 'let') showLetters(me().group);
-});
-
-function acceptInvite(i) {
-  const u = me();
-  const inv = u.invites[i];
-  const invites = u.invites.filter((_, k) => k !== i);
-  if (u.group) { setUser(currentEmail, { invites }); return msg('Вы уже в группировке.'); }
-  const g = groups[inv.gid];
-  if (!g || g.members.length >= MAX_MEMBERS) {
-    setUser(currentEmail, { invites });
-    return msg('Группировка недоступна или нет мест.');
-  }
-  g.members.push(currentEmail);
-  saveGroups();
-  setUser(currentEmail, { group: inv.gid, role: 'member', invites });
-  renderMenu();
-}
-function declineInvite(i) {
-  setUser(currentEmail, { invites: me().invites.filter((_, k) => k !== i) });
-  renderMenu();
-}
-
-document.getElementById('btnLogout').onclick = () => {
-  localStorage.removeItem(SESSION_KEY);
-  currentEmail = null;
-  showScreen('auth');
-};
-
-// ================= МОДАЛКА =================
-const modalBg = document.getElementById('modalBg');
-const modalBody = document.getElementById('modalBody');
+const modalBg = $('modalBg'), modalBody = $('modalBody');
 let modalActs = {};
 modalBody.addEventListener('click', e => {
   const a = e.target.dataset.act;
@@ -402,41 +300,156 @@ function msg(text) {
   openModal(`<p>${esc(text)}</p><button class="btn" data-act="close">OK</button>`);
 }
 
-// ================= СПИСОК ГРУППИРОВОК =================
-document.getElementById('btnGroups').onclick = showGroupList;
-function showGroupList() {
-  let html = '<h2>Группировки</h2>';
-  const acts = {};
-  GROUP_DEFS.forEach((d, i) => {
-    const g = groups[d.id];
-    html += `<div class="inv">
-      <p><b>${esc(d.name)}</b>: лидер ${g.leader ? esc(displayName(g.leader)) : 'нет'}, людей ${g.members.length} / ${MAX_MEMBERS}${g.zone ? '' : ', территории нет'}</p>
-      <button class="btn" data-act="j${i}">Открыть</button>
-    </div>`;
-    acts[`j${i}`] = () => onGroupDblClick(d.id);
-  });
-  html += `<button class="btn secondary" data-act="close">Закрыть</button>`;
-  openModal(html, acts);
+// ================= ВХОД / РЕГИСТРАЦИЯ =================
+$('tabLogin').onclick = () => {
+  $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+  $('loginForm').classList.add('active'); $('registerForm').classList.remove('active');
+};
+$('tabRegister').onclick = () => {
+  $('tabRegister').classList.add('active'); $('tabLogin').classList.remove('active');
+  $('registerForm').classList.add('active'); $('loginForm').classList.remove('active');
+};
+
+$('registerForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('regError'); err.textContent = '';
+  const nick = $('regNick').value.trim();
+  const callsign = $('regCallsign').value.trim();
+  const email = $('regEmail').value.trim().toLowerCase();
+  const pass = $('regPass').value;
+  if (!nick || !callsign || !email || !pass) { err.textContent = 'Заполните все поля'; return; }
+  if (pass.length < 6) { err.textContent = 'Пароль минимум 6 символов'; return; }
+  if (users[email]) { err.textContent = 'Такая почта уже зарегистрирована'; return; }
+  if (Object.values(users).some(u => u.nick.toLowerCase() === nick.toLowerCase())) { err.textContent = 'Такой ник уже занят'; return; }
+  users[email] = {
+    nick, callsign, pass: await hashPass(pass),
+    group: null, role: null, money: START_MONEY, invites: [], hospitalUntil: 0
+  };
+  saveAll();
+  e.target.reset();
+  login(email);
+});
+
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('loginError'); err.textContent = '';
+  const email = $('loginEmail').value.trim().toLowerCase();
+  const u = users[email];
+  if (!u) { err.textContent = 'Пользователь не найден'; return; }
+  if (u.pass !== await hashPass($('loginPass').value)) { err.textContent = 'Неверный пароль'; return; }
+  e.target.reset();
+  login(email);
+});
+
+function login(email) {
+  currentEmail = email;
+  localStorage.setItem(K_SESSION, email);
+  renderMenu();
+  showScreen('menu');
 }
 
-// ================= ТУЛТИПЫ И КЛИКИ =================
-function tooltipHtml(gid) {
-  const g = groups[gid];
-  const leader = g.leader ? esc(displayName(g.leader)) : 'нет';
-  const enemies = g.enemies.length ? g.enemies.map(id => esc(groupName(id))).join(', ') : 'ни с кем';
-  return `<b>${esc(groupName(gid))}</b><br>Лидер: ${leader}<br>Воюет с: ${enemies}`;
+$('btnLogout').onclick = () => {
+  localStorage.removeItem(K_SESSION);
+  currentEmail = null;
+  cancelMode();
+  closeModal();
+  showScreen('auth');
+};
+
+// ================= МЕНЮ =================
+function renderMenu() {
+  const u = me();
+  const g = u.group ? ` | группировка: ${gname(u.group)} (${u.role === 'leader' ? 'главный' : 'шпана'})` : '';
+  $('welcome').innerHTML = `Привет, ${esc(u.nick)} (${esc(u.callsign)})${g}`;
+  const hosp = inHospital(currentEmail) ? ` | в больнице до ${fmtTime(u.hospitalUntil)}` : '';
+  $('money').textContent = `Деньги: ${u.money} руб${hosp}`;
+  renderInvites();
 }
-function sectorTooltip(s) {
-  const g = groups[s.owner];
-  const leader = g.leader ? esc(displayName(g.leader)) : 'нет';
-  return `<b>${esc(groupName(s.owner))}</b> (захвачено)<br>Лидер: ${leader}`;
+
+function renderInvites() {
+  const u = me();
+  let h = '';
+  (u.invites || []).forEach((inv, i) => {
+    h += `<div class="inv">
+      <p>Приглашение в «${esc(gname(inv.gid))}» от ${esc(inv.from)}</p>
+      <button class="btn" data-inv="acc:${i}">Принять</button>
+      <button class="btn secondary" data-inv="dec:${i}">Нет</button>
+    </div>`;
+  });
+  if (u.group && u.role === 'leader') {
+    const gr = groups[u.group];
+    if (gr.challenges.length) {
+      h += `<div class="inv"><p>Вызовов на бой: ${gr.challenges.length}</p>
+        <button class="btn" data-inv="chal">Открыть вызовы</button></div>`;
+    }
+    if (gr.letters.length) {
+      h += `<div class="inv"><p>Писем о мире: ${gr.letters.length}</p>
+        <button class="btn" data-inv="let">Открыть письма</button></div>`;
+    }
+  }
+  $('invites').innerHTML = h;
+}
+
+$('invites').addEventListener('click', e => {
+  const a = e.target.dataset.inv;
+  if (!a) return;
+  const [k, idx] = a.split(':');
+  if (k === 'acc') acceptInvite(+idx);
+  else if (k === 'dec') declineInvite(+idx);
+  else if (k === 'chal') showOwnGroup(me().group);
+  else if (k === 'let') showLetters(me().group);
+});
+
+function acceptInvite(i) {
+  const u = me();
+  const inv = u.invites[i];
+  u.invites.splice(i, 1);
+  if (u.group) { saveAll(); return msg('Вы уже в группировке.'); }
+  const g = groups[inv.gid];
+  if (g.members.length >= MAX_MEMBERS) { saveAll(); return msg('Нет мест в группировке.'); }
+  g.members.push(currentEmail);
+  u.group = inv.gid; u.role = 'member';
+  saveAll(); renderMenu();
+  msg(`Вы вступили в «${gname(inv.gid)}».`);
+}
+function declineInvite(i) {
+  me().invites.splice(i, 1);
+  saveAll(); renderMenu();
+}
+
+$('btnPlay').onclick = () => { showScreen('game'); initMap(); };
+$('btnBack').onclick = () => { cancelMode(); showScreen('menu'); };
+$('btnGroups').onclick = showGroupList;
+
+function showGroupList() {
+  let h = '<h2>Группировки</h2>';
+  const acts = {};
+  DEFS.forEach((d, i) => {
+    const g = groups[d.id];
+    h += `<div class="inv">
+      <p><b>${esc(d.name)}</b>: лидер ${leaderName(d.id)}, людей ${g.members.length} / ${MAX_MEMBERS}${g.zone ? '' : ', территории нет'}</p>
+      <button class="btn" data-act="j${i}">Открыть</button>
+    </div>`;
+    acts['j' + i] = () => onGroupDblClick(d.id);
+  });
+  h += `<button class="btn secondary" data-act="close">Закрыть</button>`;
+  openModal(h, acts);
+}
+
+// ================= ГРУППИРОВКИ: ВСТУПЛЕНИЕ =================
+function groupTip(gid) {
+  const g = groups[gid];
+  const en = g.enemies.length ? g.enemies.map(x => esc(gname(x))).join(', ') : 'ни с кем';
+  return `<b>${esc(gname(gid))}</b><br>Лидер: ${leaderName(gid)}<br>Воюет с: ${en}`;
+}
+function sectorTip(s) {
+  return `<b>${esc(gname(s.owner))}</b> (захвачено)<br>Лидер: ${leaderName(s.owner)}`;
 }
 
 function onGroupDblClick(gid) {
-  const user = me();
-  if (!user) return;
-  if (user.group === gid) return showOwnGroup(gid);
-  if (user.group) return msg(`Вы уже в группировке «${groupName(user.group)}». Сначала выйдите из неё.`);
+  if (!currentEmail) return;
+  if (me().group === gid) return showOwnGroup(gid);
+  if (me().group) return msg(`Вы уже в группировке «${gname(me().group)}». Сначала выйдите из неё.`);
   showJoinMenu(gid);
 }
 
@@ -444,7 +457,7 @@ function showJoinMenu(gid) {
   const g = groups[gid];
   if (g.members.length >= MAX_MEMBERS) return msg('В группировке нет мест.');
   openModal(`
-    <h2>${esc(groupName(gid))}</h2>
+    <h2>${esc(gname(gid))}</h2>
     <p>Вступить как:</p>
     <button class="btn" data-act="leader">Главный${g.leader ? ' (занят)' : ''}</button>
     <button class="btn secondary" data-act="member">Шпана</button>
@@ -463,58 +476,57 @@ function joinGroup(gid, role) {
     g.leader = currentEmail;
   }
   g.members.push(currentEmail);
-  saveGroups();
-  setUser(currentEmail, { group: gid, role });
-  renderMenu();
-  msg(`Вы вступили в «${groupName(gid)}» как ${role === 'leader' ? 'главный' : 'шпана'}.`);
+  me().group = gid;
+  me().role = role;
+  saveAll(); renderMenu();
+  msg(`Вы вступили в «${gname(gid)}» как ${role === 'leader' ? 'главный' : 'шпана'}.`);
 }
 
 // ================= ПАНЕЛЬ СВОЕЙ ГРУППИРОВКИ =================
 function showOwnGroup(gid) {
-  const user = me();
-  if (!gid || user.group !== gid) return;
+  const u = me();
+  if (!gid || u.group !== gid) return;
   const g = groups[gid];
-  const isLeader = user.role === 'leader';
-  const mercs = activeMercs(gid);
-  const mercEnd = mercs ? ` (до ${fmtTime(Math.max(...g.mercs.map(m => m.exp)))})` : '';
-  const enemies = g.enemies.length ? g.enemies.map(id => esc(groupName(id))).join(', ') : 'ни с кем';
+  const isLeader = u.role === 'leader';
+  const mercs = cleanMercs(gid);
+  const mercEnd = mercs.length ? ` (до ${fmtTime(Math.max(...mercs.map(m => m.exp)))})` : '';
+  const en = g.enemies.length ? g.enemies.map(x => esc(gname(x))).join(', ') : 'ни с кем';
 
-  let html = `
-    <h2>${esc(groupName(gid))}</h2>
-    <p>Лидер: ${g.leader ? esc(displayName(g.leader)) : 'нет'}</p>
+  let h = `
+    <h2>${esc(gname(gid))}</h2>
+    <p>Лидер: ${leaderName(gid)}</p>
     <p>Людей: ${g.members.length} / ${MAX_MEMBERS}</p>
-    <p>Наёмники: ${mercs}${mercEnd}</p>
+    <p>Наёмники: ${mercs.length}${mercEnd}</p>
     <p>Доступно в бой: ${available(gid)}</p>
-    <p>Воюет с: ${enemies}</p>
+    <p>Воюет с: ${en}</p>
     <p>Территория: ${g.zone ? 'нарисована' : 'не нарисована'}</p>
-    <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>
-  `;
+    <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>`;
   const acts = {};
 
   if (isLeader) {
     g.challenges.forEach(ch => {
-      html += `<div class="inv">
-        <p>Вызов от «${esc(groupName(ch.from))}»: атакующих ${ch.attackers}</p>
+      h += `<div class="inv">
+        <p>Вызов от «${esc(gname(ch.from))}»: атакующих ${ch.attackers}</p>
         <button class="btn" data-act="def:${ch.id}">Защищать</button>
       </div>`;
-      acts[`def:${ch.id}`] = () => showDefend(gid, ch.id);
+      acts['def:' + ch.id] = () => showDefend(gid, ch.id);
     });
-    html += `
+    h += `
       <button class="btn" data-act="draw">${g.zone ? 'Нарисовать территорию заново' : 'Нарисовать территорию'}</button>
       <button class="btn" data-act="war">Война</button>
       <button class="btn" data-act="trade">Торговля</button>
       <button class="btn" data-act="diplo">Дипломатия</button>`;
-    acts.draw = () => startDraw(gid);
+    acts.draw = () => startMode('draw', gid, `Рисуйте территорию «${gname(gid)}»: кликайте по контуру. Минимум 3 точки.`, { undo: true, done: true });
     acts.war = () => showWarMenu(gid);
     acts.trade = () => msg('Торговля: скоро');
     acts.diplo = () => showDiplo(gid);
   } else {
     const label = g.leader ? `Стать лидером (сейчас: ${displayName(g.leader)})` : 'Стать главным';
-    html += `<button class="btn secondary" data-act="takeover">${esc(label)}</button>`;
+    h += `<button class="btn secondary" data-act="takeover">${esc(label)}</button>`;
     acts.takeover = () => takeLeadership(gid);
   }
 
-  html += `
+  h += `
     <button class="btn" data-act="call">Позвать чушпанов</button>
     <button class="btn" data-act="merc">Наёмники с Раена</button>
     <button class="btn secondary" data-act="leave">Выйти из группировки</button>`;
@@ -522,17 +534,16 @@ function showOwnGroup(gid) {
   acts.merc = () => showMercs(gid);
   acts.leave = () => leaveGroup(gid);
 
-  openModal(html, acts);
+  openModal(h, acts);
 }
 
 function takeLeadership(gid) {
   if (!confirm('Стать главным этой группировки?')) return;
   const g = groups[gid];
-  if (g.leader) setUser(g.leader, { role: 'member' });
+  if (g.leader && users[g.leader]) users[g.leader].role = 'member';
   g.leader = currentEmail;
-  saveGroups();
-  setUser(currentEmail, { role: 'leader' });
-  renderMenu();
+  me().role = 'leader';
+  saveAll(); renderMenu();
   showOwnGroup(gid);
 }
 
@@ -540,13 +551,12 @@ function leaveGroup(gid) {
   const g = groups[gid];
   g.members = g.members.filter(e => e !== currentEmail);
   if (g.leader === currentEmail) g.leader = null;
-  saveGroups();
-  setUser(currentEmail, { group: null, role: null });
-  renderMenu();
-  msg(`Вы вышли из «${groupName(gid)}».`);
+  me().group = null; me().role = null;
+  saveAll(); renderMenu();
+  msg(`Вы вышли из «${gname(gid)}».`);
 }
 
-// ================= ПРИЗЫВ =================
+// ================= ПРИЗЫВ И НАЁМНИКИ =================
 function showInvite(gid) {
   openModal(`
     <h2>Позвать чушпанов</h2>
@@ -555,7 +565,7 @@ function showInvite(gid) {
     <button class="btn" data-act="go">Позвать</button>
     <button class="btn secondary" data-act="back">Назад</button>
   `, {
-    go: () => inviteByNick(gid, document.getElementById('invNick').value),
+    go: () => inviteByNick(gid, $('invNick').value),
     back: () => showOwnGroup(gid)
   });
 }
@@ -563,23 +573,22 @@ function showInvite(gid) {
 function inviteByNick(gid, nick) {
   const name = nick.trim().toLowerCase();
   if (!name) return msg('Введите ник.');
-  const users = getUsers();
   const target = Object.keys(users).find(e => users[e].nick.toLowerCase() === name);
   if (!target) return msg('Игрок с таким ником не найден.');
   if (target === currentEmail) return msg('Себя звать не надо.');
   if (users[target].group) return msg('Он уже в группировке.');
   if (groups[gid].members.length >= MAX_MEMBERS) return msg('Нет мест.');
-  setUser(target, { invites: [...(users[target].invites || []), { gid, from: displayName(currentEmail) }] });
+  users[target].invites = users[target].invites || [];
+  users[target].invites.push({ gid, from: displayName(currentEmail) });
+  saveAll();
   msg(`Приглашение отправлено: ${users[target].nick}.`);
 }
 
-// ================= НАЁМНИКИ =================
 function showMercs(gid) {
-  const u = me();
   openModal(`
     <h2>Наёмники с Раена</h2>
     <p>Цена: ${MERC_PRICE} руб за 1 наёмника. Служат 10 минут.</p>
-    <p>У вас: ${u.money} руб</p>
+    <p>У вас: ${me().money} руб</p>
     <input type="number" id="mercN" min="1" value="1">
     <button class="btn" data-act="buy">Нанять</button>
     <button class="btn secondary" data-act="back">Назад</button>
@@ -590,47 +599,123 @@ function showMercs(gid) {
 }
 
 function buyMercs(gid) {
-  const n = parseInt(document.getElementById('mercN').value, 10);
-  if (isNaN(n) || n < 1) return msg('Введите число больше 0.');
-  const u = me();
+  const n = parseInt($('mercN').value, 10);
+  if (!(n >= 1)) return msg('Введите число больше 0.');
   const cost = n * MERC_PRICE;
-  if (u.money < cost) return msg(`Не хватает денег. Нужно ${cost} руб, у вас ${u.money} руб.`);
+  if (me().money < cost) return msg(`Не хватает денег. Нужно ${cost} руб, у вас ${me().money} руб.`);
   const exp = Date.now() + MERC_TIME;
   for (let i = 0; i < n; i++) groups[gid].mercs.push({ exp });
-  saveGroups();
-  setUser(currentEmail, { money: u.money - cost });
-  renderMenu();
+  me().money -= cost;
+  saveAll(); renderMenu();
   msg(`Нанято ${n} наёмн. Служат до ${fmtTime(exp)}.`);
 }
 
 // ================= ВОЙНА =================
-function declareWar(a, b) {
-  if (!groups[a].enemies.includes(b)) groups[a].enemies.push(b);
-  if (!groups[b].enemies.includes(a)) groups[b].enemies.push(a);
-  saveGroups();
-}
-
 function showWarMenu(gid) {
   const g = groups[gid];
-  let html = `<h2>Война</h2>`;
-  html += g.enemies.length
-    ? `<p>Воюете с: ${g.enemies.map(id => esc(groupName(id))).join(', ')}</p>`
-    : `<p>Сейчас ни с кем не воюете.</p>`;
+  let h = '<h2>Война</h2>';
+  h += g.enemies.length
+    ? `<p>Воюете с: ${g.enemies.map(x => esc(gname(x))).join(', ')}</p>`
+    : '<p>Сейчас ни с кем не воюете.</p>';
   const acts = {};
-  GROUP_DEFS.filter(x => x.id !== gid && !g.enemies.includes(x.id)).forEach(x => {
-    html += `<button class="btn secondary" data-act="w:${x.id}">Объявить войну: ${esc(x.name)}</button>`;
-    acts[`w:${x.id}`] = () => { declareWar(gid, x.id); msg(`Война с «${x.name}» объявлена.`); };
+  DEFS.filter(x => x.id !== gid && !g.enemies.includes(x.id)).forEach(x => {
+    h += `<button class="btn secondary" data-act="w:${x.id}">Объявить войну: ${esc(x.name)}</button>`;
+    acts['w:' + x.id] = () => {
+      groups[gid].enemies.push(x.id);
+      groups[x.id].enemies.push(gid);
+      saveAll();
+      msg(`Война с «${x.name}» объявлена.`);
+    };
   });
-  html += `
+  h += `
     <button class="btn" data-act="pick">Атаковать точку</button>
     <button class="btn secondary" data-act="back">Назад</button>`;
-  acts.pick = () => startAttackPick(gid);
+  acts.pick = () => startMode('attack', gid, 'Нажмите точку на карте, которую хотите атаковать.');
   acts.back = () => showOwnGroup(gid);
-  openModal(html, acts);
+  openModal(h, acts);
+}
+
+function handleAttackPoint(from, ll) {
+  const target = ownerAt(ll.lat, ll.lng);
+  if (!target) {
+    captureSector(ll.lat, ll.lng, from);
+    saveAll(); drawSectors();
+    return msg(`Точка ничья. «${gname(from)}» забирает её без боя.`);
+  }
+  if (target === from) return msg('Это уже ваша территория. Выберите чужую.');
+  if (!groups[from].enemies.includes(target)) return msg(`Вы не воюете с «${gname(target)}». Сначала объявите войну.`);
+  const avail = available(from);
+  if (avail < 1) return msg('Нет доступных людей: все в больнице или наёмники закончились.');
+  openModal(`
+    <h2>Атака</h2>
+    <p>Точка у «${esc(gname(target))}».</p>
+    <p>Доступно людей: ${avail}</p>
+    <input type="number" id="atkN" min="1" max="${avail}" value="${avail}">
+    <button class="btn" data-act="send">Отправить</button>
+    <button class="btn secondary" data-act="close">Отмена</button>
+  `, {
+    send: () => {
+      const n = parseInt($('atkN').value, 10);
+      if (!(n >= 1) || n > available(from)) return msg(`Введите число от 1 до ${available(from)}.`);
+      sendChallenge(from, target, ll, n);
+    }
+  });
+}
+
+function sendChallenge(from, target, ll, n) {
+  const tg = groups[target];
+  if (!tg.leader) {
+    captureSector(ll.lat, ll.lng, from);
+    saveAll(); drawSectors();
+    return msg(`У «${gname(target)}» нет главаря. «${gname(from)}» забирает точку.`);
+  }
+  tg.challenges.push({ id: rnd(), from, lat: ll.lat, lng: ll.lng, attackers: n });
+  saveAll();
+  msg(`Вызов отправлен лидеру «${gname(target)}». Ждём ответа.`);
+}
+
+function showDefend(gid, chId) {
+  const ch = groups[gid].challenges.find(c => c.id === chId);
+  if (!ch) return msg('Вызов уже неактуален.');
+  const avail = available(gid);
+  openModal(`
+    <h2>Вызов</h2>
+    <p>«${esc(gname(ch.from))}» атакует точку на вашей территории. Атакующих: ${ch.attackers}.</p>
+    <p>Доступно у вас: ${avail}</p>
+    <input type="number" id="defN" min="0" max="${avail}" value="${avail}">
+    <button class="btn" data-act="go">Защищать</button>
+    <button class="btn secondary" data-act="close">Закрыть</button>
+  `, {
+    go: () => {
+      const n = parseInt($('defN').value, 10);
+      if (!(n >= 0) || n > available(gid)) return msg('Неверное число людей.');
+      respondChallenge(gid, chId, n);
+    }
+  });
+}
+
+function respondChallenge(gid, chId, d) {
+  const g = groups[gid];
+  const ch = g.challenges.find(c => c.id === chId);
+  if (!ch) return msg('Вызов уже неактуален.');
+  g.challenges = g.challenges.filter(c => c.id !== chId);
+  const a = ch.attackers;
+  let text;
+  if (a > d) {
+    captureSector(ch.lat, ch.lng, ch.from);
+    if (d > 0) sendToHospital(gid, d);
+    text = `«${gname(ch.from)}» захватил точку. Защитники (${d}) в больнице на 30 сек.`;
+  } else {
+    sendToHospital(ch.from, a);
+    text = `«${gname(gid)}» отбил атаку. Атакующие (${a}) в больнице на 30 сек.`;
+  }
+  saveAll(); refreshMap();
+  playBattle(ch.lat, ch.lng, a, d);
+  setTimeout(() => msg(text), 1500);
 }
 
 // ================= ДИПЛОМАТИЯ =================
-let treatyDraft = null;   // черновик анкеты: { gid, target, type, money, sid }
+let treatyDraft = null;
 
 function showDiplo(gid) {
   openModal(`
@@ -656,81 +741,67 @@ function showPeaceMenu(gid) {
   });
 }
 
-// Простой мир: сразу, без письма
 function showSimplePeace(gid) {
   const g = groups[gid];
   if (!g.enemies.length) return msg('Вы ни с кем не воюете.');
-  let html = '<h2>Объявить мир</h2><p>С кем заключить мир:</p>';
+  let h = '<h2>Объявить мир</h2><p>С кем заключить мир:</p>';
   const acts = {};
   g.enemies.forEach((eid, i) => {
-    html += `<button class="btn" data-act="p${i}">Мир с: ${esc(groupName(eid))}</button>`;
-    acts[`p${i}`] = () => {
-      endWar(gid, eid);
-      msg(`Мир с «${groupName(eid)}» объявлен.`);
-    };
+    h += `<button class="btn" data-act="p${i}">Мир с: ${esc(gname(eid))}</button>`;
+    acts['p' + i] = () => { endWar(gid, eid); saveAll(); msg(`Мир с «${gname(eid)}» объявлен.`); };
   });
-  html += `<button class="btn secondary" data-act="back">Назад</button>`;
+  h += `<button class="btn secondary" data-act="back">Назад</button>`;
   acts.back = () => showPeaceMenu(gid);
-  openModal(html, acts);
+  openModal(h, acts);
 }
 
-// Анкета «Мир с договором»
-function readTreatyDraft() {
-  const sel = document.getElementById('trTarget');
-  const money = document.getElementById('trMoney');
+function readTreaty() {
+  const sel = $('trTarget'), m = $('trMoney');
   if (sel) treatyDraft.target = sel.value || null;
-  if (money) treatyDraft.money = money.value;
+  if (m) treatyDraft.money = m.value;
 }
 
 function showTreatyForm(gid) {
-  if (!treatyDraft || treatyDraft.gid !== gid) treatyDraft = { gid, target: null, type: 'money', money: '', sid: null };
   const d = treatyDraft;
-  const opts = GROUP_DEFS.filter(x => x.id !== gid)
+  const opts = DEFS.filter(x => x.id !== gid)
     .map(x => `<option value="${x.id}" ${d.target === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const sector = d.sid ? sectors.find(s => s.id === d.sid) : null;
-
-  let html = `
+  let h = `
     <h2>Мир с договором</h2>
     <p>Группировка:</p>
     <select id="trTarget"><option value="">— выберите —</option>${opts}</select>
     <p>Что вы даёте в обмен:</p>
     <button class="btn ${d.type === 'money' ? '' : 'secondary'}" data-act="tmoney">Деньги</button>
     <button class="btn ${d.type === 'terr' ? '' : 'secondary'}" data-act="tterr">Территорию</button>`;
-
   if (d.type === 'money') {
-    html += `<input type="number" id="trMoney" min="1" placeholder="Сумма, руб" value="${esc(d.money)}">`;
+    h += `<input type="number" id="trMoney" min="1" placeholder="Сумма, руб" value="${esc(d.money)}">`;
   } else {
-    html += `<p>${sector ? 'Точка выбрана на карте.' : 'Точка не выбрана.'}</p>
+    h += `<p>${sector ? 'Точка выбрана на карте.' : 'Точка не выбрана.'}</p>
       <button class="btn secondary" data-act="tpick">Выбрать точку на карте</button>`;
   }
-
-  html += `
+  h += `
     <button class="btn" data-act="tsend">Отправить письмо</button>
     <button class="btn secondary" data-act="back">Назад</button>`;
-
-  openModal(html, {
-    tmoney: () => { readTreatyDraft(); d.type = 'money'; showTreatyForm(gid); },
-    tterr: () => { readTreatyDraft(); d.type = 'terr'; showTreatyForm(gid); },
-    tpick: () => { readTreatyDraft(); startTreatyPick(gid); },
-    tsend: () => { readTreatyDraft(); sendTreaty(gid); },
+  openModal(h, {
+    tmoney: () => { readTreaty(); d.type = 'money'; showTreatyForm(gid); },
+    tterr: () => { readTreaty(); d.type = 'terr'; showTreatyForm(gid); },
+    tpick: () => { readTreaty(); startMode('tpick', gid, 'Нажмите свою захваченную точку, которую хотите отдать.'); },
+    tsend: () => { readTreaty(); sendTreaty(gid); },
     back: () => showPeaceMenu(gid)
   });
 }
 
 function sendTreaty(gid) {
   const d = treatyDraft;
-  if (!d || d.gid !== gid) return;
-  if (!d.target) return msg('Выберите группировку.');
-  const g = groups[gid];
-  const tg = groups[d.target];
-  if (!g.enemies.includes(d.target)) {
-    return msg(`Вы не воюете с «${groupName(d.target)}». Договор возможен только во время войны.`);
-  }
+  if (!d || !d.target) return msg('Выберите группировку.');
+  const g = groups[gid], tg = groups[d.target];
+  if (!g.enemies.includes(d.target)) return msg(`Вы не воюете с «${gname(d.target)}». Договор возможен только во время войны.`);
+  if (!tg.leader) return msg(`У «${gname(d.target)}» нет лидера. Письмо не отправлено, война продолжается.`);
 
   let offer;
   if (d.type === 'money') {
     const amt = parseInt(d.money, 10);
-    if (isNaN(amt) || amt < 1) return msg('Введите сумму больше 0.');
+    if (!(amt >= 1)) return msg('Введите сумму больше 0.');
     if (me().money < amt) return msg(`Не хватает денег. У вас ${me().money} руб.`);
     offer = { type: 'money', amount: amt };
   } else {
@@ -739,39 +810,29 @@ function sendTreaty(gid) {
     if (!s || s.owner !== gid) return msg('Эта точка уже не ваша. Выберите другую.');
     offer = { type: 'sector', sid: d.sid };
   }
-
-  if (!tg.leader) {
-    return msg(`У «${groupName(d.target)}» нет лидера. Письмо не отправлено, война продолжается.`);
-  }
-
   tg.letters.push({ id: rnd(), from: gid, fromEmail: currentEmail, offer });
-  saveGroups();
+  saveAll();
   treatyDraft = null;
-  msg(`Письмо отправлено лидеру «${groupName(d.target)}». Ждём ответа.`);
-}
-
-// Письма о мире (для лидера получающей группировки)
-function offerText(o) {
-  if (o.type === 'money') return `${o.amount} руб`;
-  return 'свою захваченную точку';
+  msg(`Письмо отправлено лидеру «${gname(d.target)}». Ждём ответа.`);
 }
 
 function showLetters(gid) {
   const g = groups[gid];
   if (!g.letters.length) return msg('Писем нет.');
-  let html = '<h2>Письма о мире</h2>';
+  let h = '<h2>Письма о мире</h2>';
   const acts = {};
   g.letters.forEach((l, i) => {
-    html += `<div class="inv">
-      <p>От «${esc(groupName(l.from))}»: в обмен на мир предлагают ${offerText(l.offer)}.</p>
+    const off = l.offer.type === 'money' ? `${l.offer.amount} руб` : 'свою захваченную точку';
+    h += `<div class="inv">
+      <p>От «${esc(gname(l.from))}»: в обмен на мир предлагают ${off}.</p>
       <button class="btn" data-act="la${i}">Принять</button>
       <button class="btn secondary" data-act="ld${i}">Отклонить</button>
     </div>`;
-    acts[`la${i}`] = () => acceptLetter(gid, i);
-    acts[`ld${i}`] = () => declineLetter(gid, i);
+    acts['la' + i] = () => acceptLetter(gid, i);
+    acts['ld' + i] = () => declineLetter(gid, i);
   });
-  html += `<button class="btn secondary" data-act="close">Закрыть</button>`;
-  openModal(html, acts);
+  h += `<button class="btn secondary" data-act="close">Закрыть</button>`;
+  openModal(h, acts);
 }
 
 function acceptLetter(gid, i) {
@@ -779,322 +840,176 @@ function acceptLetter(gid, i) {
   const l = g.letters[i];
   if (!l) return;
   g.letters.splice(i, 1);
-
-  if (!groups[l.from].enemies.includes(gid)) {
-    saveGroups();
-    return msg('Война уже закончилась.');
-  }
+  if (!groups[l.from].enemies.includes(gid)) { saveAll(); return msg('Война уже закончилась.'); }
 
   let extra;
   if (l.offer.type === 'money') {
-    const sender = getUsers()[l.fromEmail];
+    const sender = users[l.fromEmail];
     if (!sender || sender.money < l.offer.amount) {
-      saveGroups();
+      saveAll();
       return msg('У отправителя не хватает денег. Договор не заключён, война продолжается.');
     }
-    setUser(l.fromEmail, { money: sender.money - l.offer.amount });
-    setUser(currentEmail, { money: me().money + l.offer.amount });
+    sender.money -= l.offer.amount;
+    me().money += l.offer.amount;
     extra = `Получено ${l.offer.amount} руб.`;
   } else {
     const s = sectors.find(x => x.id === l.offer.sid);
     if (s && s.owner === l.from) {
       s.owner = gid;
-      saveSectors();
-      drawSectors();
       extra = 'Точка передана вам.';
     } else {
       extra = 'Точка уже не принадлежала отправителю, передачи не было.';
     }
   }
-
   endWar(gid, l.from);
-  saveGroups();
-  renderMenu();
-  msg(`Мир с «${groupName(l.from)}» заключён. ${extra}`);
+  saveAll(); renderMenu(); refreshMap();
+  msg(`Мир с «${gname(l.from)}» заключён. ${extra}`);
 }
 
 function declineLetter(gid, i) {
   groups[gid].letters.splice(i, 1);
-  saveGroups();
-  renderMenu();
+  saveAll(); renderMenu();
   msg('Письмо отклонено. Война продолжается.');
 }
 
 // ================= РЕЖИМЫ НА КАРТЕ =================
-let mode = null;      // null | 'draw' | 'attack' | 'tpick'
-let modeGid = null;
-let drawPts = [];
-let draftLayer = null;
+let map = null, zoneLayer, sectorLayer, battleLayer, draftLayer;
+let mode = null, modeGid = null, drawPts = [];
 
 function showHint(text, { undo = false, done = false } = {}) {
-  document.getElementById('hintText').textContent = text;
-  document.getElementById('hintUndo').classList.toggle('hidden', !undo);
-  document.getElementById('hintDone').classList.toggle('hidden', !done);
-  document.getElementById('hint').classList.add('active');
+  $('hintText').textContent = text;
+  $('hintUndo').classList.toggle('hidden', !undo);
+  $('hintDone').classList.toggle('hidden', !done);
+  $('hint').classList.add('active');
 }
-function hideHint() { document.getElementById('hint').classList.remove('active'); }
 
 function cancelMode() {
   mode = null; modeGid = null; drawPts = [];
   if (draftLayer) draftLayer.clearLayers();
-  hideHint();
+  $('hint').classList.remove('active');
   if (map) map.getContainer().style.cursor = '';
 }
 
-function startDraw(gid) {
+function startMode(kind, gid, text, opts = {}) {
   closeModal();
   cancelMode();
-  mode = 'draw'; modeGid = gid; drawPts = [];
-  showScreen('game'); initMap();
-  showHint(`Рисуйте территорию «${groupName(gid)}»: кликайте по точкам по контуру. Минимум 3 точки.`, { undo: true, done: true });
+  mode = kind; modeGid = gid; drawPts = [];
+  showScreen('game');
+  initMap();
+  showHint(text, opts);
   map.getContainer().style.cursor = 'crosshair';
   renderDraft();
 }
 
 function renderDraft() {
+  if (!draftLayer) return;
   draftLayer.clearLayers();
-  const col = colorOf(modeGid);
+  const col = modeGid ? gcolor(modeGid) : '#fff';
   if (drawPts.length >= 2) L.polyline(drawPts, { color: col, weight: 2, dashArray: '4 4' }).addTo(draftLayer);
   drawPts.forEach(p => L.circleMarker(p, { radius: 4, color: '#fff', fillColor: col, fillOpacity: 1, weight: 1 }).addTo(draftLayer));
 }
 
 function finishDraw() {
   if (drawPts.length < 3) return msg('Нужно минимум 3 точки.');
-  groups[modeGid].zone = drawPts.slice();
-  saveGroups();
   const gid = modeGid;
+  groups[gid].zone = drawPts.slice();
+  saveAll();
   cancelMode();
-  drawZones();
-  msg(`Территория «${groupName(gid)}» сохранена.`);
+  refreshMap();
+  msg(`Территория «${gname(gid)}» сохранена.`);
 }
 
-function startAttackPick(gid) {
-  closeModal();
-  cancelMode();
-  mode = 'attack'; modeGid = gid;
-  showScreen('game'); initMap();
-  showHint('Нажмите точку на карте, которую хотите атаковать.');
-  map.getContainer().style.cursor = 'crosshair';
-}
-
-function startTreatyPick(gid) {
-  closeModal();
-  cancelMode();
-  mode = 'tpick'; modeGid = gid;
-  showScreen('game'); initMap();
-  showHint('Нажмите свою захваченную точку, которую хотите отдать.');
-  map.getContainer().style.cursor = 'crosshair';
-}
-
-function handleTreatyPick(gid, latlng) {
-  const s = [...sectors].reverse().find(x => x.owner === gid && L.latLng(x.lat, x.lng).distanceTo(latlng) <= SECTOR_R);
+function handleTreatyPick(gid, ll) {
+  const s = [...sectors].reverse().find(x => x.owner === gid && distM(ll.lat, ll.lng, x.lat, x.lng) <= SECTOR_R);
   if (!s) return msg('Здесь нет вашей захваченной точки. Нажмите на свою точку.');
   treatyDraft.sid = s.id;
   cancelMode();
   showTreatyForm(gid);
 }
 
-document.getElementById('hintCancel').onclick = cancelMode;
-document.getElementById('hintDone').onclick = finishDraw;
-document.getElementById('hintUndo').onclick = () => { drawPts.pop(); renderDraft(); };
+$('hintCancel').onclick = cancelMode;
+$('hintDone').onclick = finishDraw;
+$('hintUndo').onclick = () => { drawPts.pop(); renderDraft(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape') cancelMode(); });
 
-// ================= ОПРЕДЕЛЕНИЕ ВЛАДЕЛЬЦА =================
-function inPoly(lat, lng, ring) {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1];
-    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
-  }
-  return inside;
-}
-
-function ownerAt(latlng) {
-  for (let i = sectors.length - 1; i >= 0; i--) {
-    const s = sectors[i];
-    if (L.latLng(s.lat, s.lng).distanceTo(latlng) <= SECTOR_R) return s.owner;
-  }
-  for (const d of GROUP_DEFS) {
-    const z = groups[d.id].zone;
-    if (z && inPoly(latlng.lat, latlng.lng, z)) return d.id;
-  }
-  return null;
-}
-
-// ================= АТАКА =================
-function handleAttackPoint(from, latlng) {
-  const target = ownerAt(latlng);
-  if (!target) {
-    captureSector(latlng.lat, latlng.lng, from);
-    return msg(`Точка ничья. «${groupName(from)}» забирает её без боя.`);
-  }
-  if (target === from) return msg('Это уже ваша территория. Выберите чужую.');
-  if (!groups[from].enemies.includes(target)) return msg(`Вы не воюете с «${groupName(target)}». Сначала объявите войну.`);
-  const avail = available(from);
-  if (avail < 1) return msg('Нет доступных людей: все в больнице или наёмники закончились.');
-  openModal(`
-    <h2>Атака</h2>
-    <p>Точка у «${esc(groupName(target))}».</p>
-    <p>Доступно людей: ${avail}</p>
-    <input type="number" id="atkN" min="1" max="${avail}" value="${avail}">
-    <button class="btn" data-act="send">Отправить</button>
-    <button class="btn secondary" data-act="close">Отмена</button>
-  `, {
-    send: () => {
-      const n = parseInt(document.getElementById('atkN').value, 10);
-      if (isNaN(n) || n < 1 || n > available(from)) return msg(`Введите число от 1 до ${available(from)}.`);
-      sendChallenge(from, target, latlng, n);
-    }
-  });
-}
-
-function sendChallenge(from, target, latlng, n) {
-  const tg = groups[target];
-  if (!tg.leader) {
-    captureSector(latlng.lat, latlng.lng, from);
-    return msg(`У «${groupName(target)}» нет главаря. «${groupName(from)}» забирает точку.`);
-  }
-  tg.challenges.push({ id: rnd(), from, target, lat: latlng.lat, lng: latlng.lng, attackers: n });
-  saveGroups();
-  msg(`Вызов отправлен лидеру «${groupName(target)}». Ждём ответа.`);
-}
-
-function showDefend(gid, chId) {
-  const ch = groups[gid].challenges.find(c => c.id === chId);
-  if (!ch) return msg('Вызов уже неактуален.');
-  const avail = available(gid);
-  openModal(`
-    <h2>Вызов</h2>
-    <p>«${esc(groupName(ch.from))}» атакует точку на вашей территории. Атакующих: ${ch.attackers}.</p>
-    <p>Доступно у вас: ${avail}</p>
-    <input type="number" id="defN" min="0" max="${avail}" value="${avail}">
-    <button class="btn" data-act="go">Защищать</button>
-    <button class="btn secondary" data-act="close">Закрыть</button>
-  `, {
-    go: () => {
-      const n = parseInt(document.getElementById('defN').value, 10);
-      if (isNaN(n) || n < 0 || n > available(gid)) return msg('Неверное число людей.');
-      respondChallenge(gid, chId, n);
-    }
-  });
-}
-
-function respondChallenge(gid, chId, d) {
-  const g = groups[gid];
-  const ch = g.challenges.find(c => c.id === chId);
-  if (!ch) return msg('Вызов уже неактуален.');
-  g.challenges = g.challenges.filter(c => c.id !== chId);
-  const a = ch.attackers;
-  let text;
-  if (a > d) {
-    captureSector(ch.lat, ch.lng, ch.from);
-    if (d > 0) sendToHospital(gid, d);
-    text = `«${groupName(ch.from)}» захватил точку. Защитники (${d}) в больнице на 30 сек.`;
-  } else {
-    sendToHospital(ch.from, a);
-    text = `«${groupName(gid)}» отбил атаку. Атакующие (${a}) в больнице на 30 сек.`;
-  }
-  saveGroups();
-  playBattle(ch.lat, ch.lng, a, d);
-  setTimeout(() => msg(text), 1500);
-}
-
 // ================= КАРТА =================
-let map = null;
-let zoneLayer = null;
-let sectorLayer = null;
-let battleLayer = null;
-
-document.getElementById('btnPlay').onclick = () => { showScreen('game'); initMap(); };
-document.getElementById('btnBack').onclick = () => { cancelMode(); showScreen('menu'); };
-
-function drawZones() {
-  zoneLayer.clearLayers();
-  GROUP_DEFS.forEach(d => {
-    const z = groups[d.id].zone;
-    if (!z) return;
-    L.polygon(z, { color: d.color, weight: 2, fillColor: d.color, fillOpacity: 0.85 })
-      .addTo(zoneLayer)
-      .bindTooltip(() => tooltipHtml(d.id), { sticky: true })
-      .on('dblclick', () => onGroupDblClick(d.id));
-  });
-}
-
-function captureSector(lat, lng, owner) {
-  sectors.push({ id: rnd(), lat, lng, owner });
-  saveSectors();
-  drawSectors();
-}
-
-function drawSectors() {
-  sectorLayer.clearLayers();
-  sectors.forEach(s => {
-    const col = colorOf(s.owner);
-    L.circle([s.lat, s.lng], { radius: SECTOR_R, color: col, fillColor: col, fillOpacity: 0.8, weight: 2 })
-      .addTo(sectorLayer)
-      .bindTooltip(() => sectorTooltip(s), { sticky: true })
-      .on('dblclick', () => onGroupDblClick(s.owner));
-  });
-}
-
-function playBattle(lat, lng, a, d) {
-  battleLayer.clearLayers();
-  const spacing = 0.00004;
-  const icon = cls => L.divIcon({ className: '', html: `<div class="man ${cls}"></div>`, iconSize: [8, 14], iconAnchor: [4, 7] });
-  const sa = Math.min(a, 30), sd = Math.min(d, 30);
-  for (let i = 0; i < sa; i++) {
-    const la = lat + (i - (sa - 1) / 2) * spacing;
-    L.marker([la, lng - 0.0002], { icon: icon('att'), interactive: false }).addTo(battleLayer);
-  }
-  for (let i = 0; i < sd; i++) {
-    const la = lat + (i - (sd - 1) / 2) * spacing;
-    L.marker([la, lng + 0.0002], { icon: icon('def'), interactive: false }).addTo(battleLayer);
-  }
-  setTimeout(() => battleLayer.clearLayers(), 6000);
-}
-
 function initMap() {
   if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
-
   map = L.map('map', { doubleClickZoom: false }).setView([55.8325, 37.9710], 16);
   L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 19, attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics' }
   ).addTo(map);
-
   zoneLayer = L.layerGroup().addTo(map);
   sectorLayer = L.layerGroup().addTo(map);
   battleLayer = L.layerGroup().addTo(map);
   draftLayer = L.layerGroup().addTo(map);
-  drawZones();
-  drawSectors();
 
   map.on('click', e => {
     if (mode === 'draw') {
       drawPts.push([e.latlng.lat, e.latlng.lng]);
       renderDraft();
     } else if (mode === 'attack') {
-      const from = modeGid;
+      const gid = modeGid;
       cancelMode();
-      handleAttackPoint(from, e.latlng);
+      handleAttackPoint(gid, e.latlng);
     } else if (mode === 'tpick') {
       handleTreatyPick(modeGid, e.latlng);
     }
   });
 
+  refreshMap();
   setTimeout(() => map.invalidateSize(), 100);
+}
+
+function drawSectors() { refreshMap(); }
+
+function refreshMap() {
+  if (!map) return;
+  zoneLayer.clearLayers();
+  DEFS.forEach(d => {
+    const z = groups[d.id].zone;
+    if (!z) return;
+    L.polygon(z, { color: d.color, weight: 2, fillColor: d.color, fillOpacity: 0.85 })
+      .addTo(zoneLayer)
+      .bindTooltip(() => groupTip(d.id), { sticky: true })
+      .on('dblclick', () => onGroupDblClick(d.id));
+  });
+  sectorLayer.clearLayers();
+  sectors.forEach(s => {
+    L.circle([s.lat, s.lng], { radius: SECTOR_R, color: gcolor(s.owner), fillColor: gcolor(s.owner), fillOpacity: 0.8, weight: 2 })
+      .addTo(sectorLayer)
+      .bindTooltip(() => sectorTip(s), { sticky: true })
+      .on('dblclick', () => onGroupDblClick(s.owner));
+  });
+}
+
+function playBattle(lat, lng, a, d) {
+  if (!battleLayer) return;
+  battleLayer.clearLayers();
+  const sp = 0.00004;
+  const icon = c => L.divIcon({ className: '', html: `<div class="man ${c}"></div>`, iconSize: [8, 14], iconAnchor: [4, 7] });
+  const sa = Math.min(a, 30), sd = Math.min(d, 30);
+  for (let i = 0; i < sa; i++) {
+    L.marker([lat + (i - (sa - 1) / 2) * sp, lng - 0.0002], { icon: icon('att'), interactive: false }).addTo(battleLayer);
+  }
+  for (let i = 0; i < sd; i++) {
+    L.marker([lat + (i - (sd - 1) / 2) * sp, lng + 0.0002], { icon: icon('def'), interactive: false }).addTo(battleLayer);
+  }
+  setTimeout(() => battleLayer.clearLayers(), 6000);
 }
 
 // ================= СТАРТ =================
 (function init() {
-  // у старых точек могло не быть id
-  let fixed = false;
-  sectors.forEach(s => { if (!s.id) { s.id = rnd(); fixed = true; } });
-  if (fixed) saveSectors();
-
-  const session = localStorage.getItem(SESSION_KEY);
-  if (session && getUsers()[session]) openMenu(session);
-  else showScreen('auth');
+  saveAll();
+  const session = localStorage.getItem(K_SESSION);
+  if (session && users[session]) {
+    currentEmail = session;
+    renderMenu();
+    showScreen('menu');
+  } else {
+    showScreen('auth');
+  }
 })();
 </script>
 </body>
