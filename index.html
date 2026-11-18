@@ -23,7 +23,7 @@
   input { padding: 11px; margin-bottom: 10px; background: #111; border: 1px solid #444; color: #fff; border-radius: 6px; font-size: 15px; }
   input:focus { outline: none; border-color: #e53935; }
   .error { color: #ff5252; font-size: 14px; min-height: 18px; margin-bottom: 8px; text-align: center; }
-  .btn { padding: 12px; background: #e53935; border: none; color: #fff; border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%; }
+  .btn { padding: 12px; background: #e53935; border: none; color: #fff; border-radius: 6px; font-size: 16px; cursor: pointer; width: 100%; margin-bottom: 8px; }
   .btn:hover { background: #c62828; }
   .btn.secondary { background: #333; }
   .btn.secondary:hover { background: #444; }
@@ -36,19 +36,34 @@
 
   /* GAME */
   #game { flex-direction: column; height: 100vh; }
-  .topbar { height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333; }
+  .topbar { height: 52px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 14px; background: #1a1a1a; border-bottom: 1px solid #333; }
   .topbar span { font-weight: bold; color: #e53935; }
-  .topbar .btn { width: auto; padding: 8px 14px; font-size: 14px; }
+  .topbar .btn { width: auto; padding: 8px 14px; font-size: 14px; margin: 0; }
+  #atkBanner { display: none; flex: none; background: #e53935; color: #fff; padding: 8px 14px; align-items: center; justify-content: space-between; font-size: 14px; }
+  #atkBanner.active { display: flex; }
+  #atkBanner button { width: auto; padding: 6px 10px; font-size: 13px; background: #333; border: none; color: #fff; border-radius: 6px; cursor: pointer; }
+  #alerts { flex: none; }
+  .alert { background: #2a1212; border: 1px solid #e53935; border-radius: 8px; padding: 8px 12px; margin: 6px 14px 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+  .alert.info { border-color: #555; background: #1a1a1a; }
+  .alert .btn { width: auto; padding: 6px 10px; font-size: 13px; margin: 0; }
+  #news { flex: none; font-size: 13px; color: #bbb; padding: 6px 14px; min-height: 22px; }
   #map { flex: 1; width: 100%; }
   .leaflet-tooltip { background: #1a1a1a; color: #fff; border: 1px solid #444; font-size: 13px; }
+
+  /* BATTLE FIGURES */
+  .bt-icon { background: none; border: none; }
+  .battle-pt { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+  .fig-row { position: absolute; top: -8px; display: flex; gap: 2px; white-space: nowrap; }
+  .fig-row.att { right: 0; }
+  .fig-row.def { left: 0; }
+  .fig-row svg { flex: none; }
 
   /* MODAL */
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
   .modal-bg.active { display: flex; }
-  .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 22px; width: 90%; max-width: 340px; color: #eee; }
+  .modal { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 22px; width: 90%; max-width: 340px; color: #eee; max-height: 90vh; overflow-y: auto; }
   .modal h2 { color: #e53935; margin-bottom: 12px; font-size: 20px; }
   .modal p { margin-bottom: 8px; line-height: 1.4; }
-  .modal .btn { margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -96,6 +111,12 @@
     <span>Балашиха</span>
     <button class="btn secondary" id="btnBack">← В меню</button>
   </div>
+  <div id="atkBanner">
+    <span>Нажмите на территорию врага на карте</span>
+    <button id="atkCancel">Отмена</button>
+  </div>
+  <div id="alerts"></div>
+  <div id="news"></div>
   <div id="map"></div>
 </div>
 
@@ -106,14 +127,16 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
-// ================= ТЕРРИТОРИИ =================
-// Координаты в формате [долгота, широта], как в GeoJSON.
-// enemy — id территории, с которой идёт война (или null).
+// ================= НАСТРОЙКИ =================
 const MAX_MEMBERS = 30;
+const HOSPITAL_MS = 30000;   // 30 секунд в больнице
+const DEFEND_MS = 120000;    // сколько ждём ответа защитника (2 минуты)
+const DONE_SHOW_MS = 8000;   // сколько секунд видно бой на карте
 
+// Группировка = территория. Координаты в формате [долгота, широта].
 const TERRITORIES = [
   {
-    id: 'univ', name: 'Универсам', color: '#2e7d32', enemy: 'chainiki',
+    id: 'univ', name: 'Универсам', color: '#2e7d32',
     coords: [
       [37.9715151,55.830116],[37.9716861,55.8329778],[37.9720623,55.8335059],[37.9724042,55.8338516],
       [37.9726094,55.8341973],[37.972712,55.8347158],[37.9729514,55.8357145],[37.9731395,55.8358489],
@@ -122,7 +145,7 @@ const TERRITORIES = [
     ]
   },
   {
-    id: 'kino', name: 'Кинопленка', color: '#7b1fa2', enemy: null,
+    id: 'kino', name: 'Кинопленка', color: '#7b1fa2',
     coords: [
       [37.9714177,55.8302632],[37.9692348,55.8303511],[37.9675265,55.8303876],[37.9674011,55.8303437],
       [37.9673033,55.8302627],[37.967233,55.8301454],[37.9669636,55.8301165],[37.9668064,55.8301315],
@@ -135,7 +158,7 @@ const TERRITORIES = [
     ]
   },
   {
-    id: 'chainiki', name: 'Чайники', color: '#757575', enemy: 'univ',
+    id: 'chainiki', name: 'Чайники', color: '#757575',
     coords: [
       [37.9713474,55.8302366],[37.96923,55.8302822],[37.967532,55.8302476],[37.9672775,55.8300489],
       [37.9668316,55.8299979],[37.9664408,55.830046],[37.9662634,55.829985],[37.9660489,55.8297247],
@@ -146,46 +169,61 @@ const TERRITORIES = [
   }
 ];
 
-// ================= ХРАНИЛИЩЕ =================
+const T = id => TERRITORIES.find(t => t.id === id);
+const gname = id => id ? T(id).name : '';
+const gcolor = id => id ? T(id).color : '#999';
+
+// ================= СОСТОЯНИЕ ИГРЫ =================
+// owner[zone] — какая группировка владеет территорией
+// groups[gid] — лидер, участники, с кем война, больница
+// battles — текущие атаки
+const STATE_KEY = 'raen_state_v2';
+function freshState() {
+  const s = { groups: {}, owner: {}, battles: [], news: [] };
+  TERRITORIES.forEach(t => {
+    s.groups[t.id] = { leader: null, members: [], enemy: null, hospital: [] };
+    s.owner[t.id] = t.id;
+  });
+  return s;
+}
+let S = JSON.parse(localStorage.getItem(STATE_KEY) || 'null') || freshState();
+function saveS() { localStorage.setItem(STATE_KEY, JSON.stringify(S)); }
+function news(text) { S.news.unshift(text); S.news = S.news.slice(0, 5); }
+
+// ================= ПОЛЬЗОВАТЕЛИ =================
 const USERS_KEY = 'raen_users';
 const SESSION_KEY = 'raen_session';
-const GROUPS_KEY = 'raen_groups';
+let currentEmail = null;
 
 function getUsers() { return JSON.parse(localStorage.getItem(USERS_KEY) || '{}'); }
-function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
-function setUser(email, data) {
-  const u = getUsers();
-  u[email] = { ...u[email], ...data };
-  saveUsers(u);
-}
-function me() { return getUsers()[currentEmail]; }
-
-function loadGroups() {
-  const saved = JSON.parse(localStorage.getItem(GROUPS_KEY) || 'null');
-  if (saved) return saved;
-  const g = {};
-  TERRITORIES.forEach(t => g[t.id] = { leader: null, members: [], enemy: t.enemy });
-  return g;
-}
-let groups = loadGroups();
-function saveGroups() { localStorage.setItem(GROUPS_KEY, JSON.stringify(groups)); }
+function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+function setUser(email, data) { const u = getUsers(); u[email] = { ...u[email], ...data }; saveUsers(u); }
+const me = () => getUsers()[currentEmail];
 
 async function hashPass(text) {
   if (!window.crypto || !crypto.subtle) return text;
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const territoryById = id => TERRITORIES.find(t => t.id === id);
-const groupName = id => id ? territoryById(id).name : '';
 function displayName(email) {
   const u = getUsers()[email];
   return u ? `${u.nick} (${u.callsign})` : '—';
 }
 
+// ================= ЛЮДИ В ГРУППИРОВКЕ =================
+function hospitalNow(gid) {
+  const now = Date.now();
+  return S.groups[gid].hospital.filter(h => h.until > now).reduce((a, h) => a + h.n, 0);
+}
+function committed(gid) {
+  return S.battles.filter(b => b.status === 'wait' && b.att === gid).reduce((a, b) => a + b.att_n, 0);
+}
+function freeCount(gid) {
+  return Math.max(0, S.groups[gid].members.length - hospitalNow(gid) - committed(gid));
+}
+
 // ================= ЭКРАНЫ =================
-let currentEmail = null;
 const screens = {
   auth: document.getElementById('auth'),
   menu: document.getElementById('menu'),
@@ -196,7 +234,7 @@ function showScreen(name) {
   screens[name].classList.add('active');
 }
 
-// ================= ВКЛАДКИ =================
+// ================= ВХОД / РЕГИСТРАЦИЯ =================
 const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
 const loginForm = document.getElementById('loginForm');
@@ -211,12 +249,10 @@ tabRegister.onclick = () => {
   registerForm.classList.add('active'); loginForm.classList.remove('active');
 };
 
-// ================= РЕГИСТРАЦИЯ =================
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('regError');
   err.textContent = '';
-
   const nick = document.getElementById('regNick').value.trim();
   const callsign = document.getElementById('regCallsign').value.trim();
   const email = document.getElementById('regEmail').value.trim().toLowerCase();
@@ -224,7 +260,6 @@ registerForm.addEventListener('submit', async (e) => {
 
   if (!nick || !callsign || !email || !pass) { err.textContent = 'Заполните все поля'; return; }
   if (pass.length < 6) { err.textContent = 'Пароль минимум 6 символов'; return; }
-
   const users = getUsers();
   if (users[email]) { err.textContent = 'Такая почта уже зарегистрирована'; return; }
 
@@ -235,19 +270,15 @@ registerForm.addEventListener('submit', async (e) => {
   openMenu(email);
 });
 
-// ================= ВХОД =================
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const err = document.getElementById('loginError');
   err.textContent = '';
-
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const pass = document.getElementById('loginPass').value;
-
   const user = getUsers()[email];
   if (!user) { err.textContent = 'Пользователь не найден'; return; }
   if (user.pass !== await hashPass(pass)) { err.textContent = 'Неверный пароль'; return; }
-
   localStorage.setItem(SESSION_KEY, email);
   loginForm.reset();
   openMenu(email);
@@ -257,11 +288,10 @@ loginForm.addEventListener('submit', async (e) => {
 function openMenu(email) {
   currentEmail = email;
   const user = getUsers()[email];
-  const g = user.group ? ` | группировка: ${groupName(user.group)}` : '';
+  const g = user.group ? ` | группировка: ${gname(user.group)}` : '';
   document.getElementById('welcome').textContent = `Привет, ${user.nick} (${user.callsign})${g}`;
   showScreen('menu');
 }
-
 document.getElementById('btnLogout').onclick = () => {
   localStorage.removeItem(SESSION_KEY);
   currentEmail = null;
@@ -272,12 +302,10 @@ document.getElementById('btnLogout').onclick = () => {
 const modalBg = document.getElementById('modalBg');
 const modalBody = document.getElementById('modalBody');
 let modalActs = {};
-
 modalBody.addEventListener('click', e => {
   const a = e.target.dataset.act;
   if (a && modalActs[a]) modalActs[a]();
 });
-
 function openModal(html, acts = {}) {
   modalActs = { close: closeModal, ...acts };
   modalBody.innerHTML = html;
@@ -288,138 +316,395 @@ function msg(text) {
   openModal(`<p>${esc(text)}</p><button class="btn" data-act="close">OK</button>`);
 }
 
-// ================= ЛОГИКА ГРУППИРОВОК =================
-function tooltipHtml(t) {
-  const g = groups[t.id];
-  const leader = g.leader ? esc(displayName(g.leader)) : 'нет';
-  const enemy = g.enemy ? esc(groupName(g.enemy)) : 'ни с кем';
-  return `<b>${esc(t.name)}</b><br>Лидер: ${leader}<br>Воюет с: ${enemy}`;
+// ================= ГРУППИРОВКИ: ВСТУПЛЕНИЕ =================
+function zoneTip(z) {
+  const o = S.owner[z.id];
+  const g = S.groups[o];
+  return `<b>${esc(gname(o))}</b><br>Территория: ${esc(z.name)}<br>` +
+    `Лидер: ${g.leader ? esc(displayName(g.leader)) : 'нет'}<br>` +
+    `Воюет с: ${g.enemy ? esc(gname(g.enemy)) : 'ни с кем'}`;
 }
 
-function onTerritoryDblClick(t) {
-  const user = me();
-  if (user.group === t.id) return showOwnGroup(t);
-  if (user.group) return msg(`Вы уже в группировке «${groupName(user.group)}». Сначала выйдите из неё.`);
-  showJoinMenu(t);
+function onZoneDbl(z) {
+  if (attackMode) return;
+  const u = me();
+  const owner = S.owner[z.id];
+  if (u.group === owner) return showOwnGroup(owner);
+  if (u.group) return msg(`Вы уже в группировке «${gname(u.group)}». Сначала выйдите из неё.`);
+  showJoinMenu(owner);
 }
 
-function showJoinMenu(t) {
-  const g = groups[t.id];
+function showJoinMenu(gid) {
+  const g = S.groups[gid];
   openModal(`
-    <h2>${esc(t.name)}</h2>
+    <h2>${esc(gname(gid))}</h2>
     <p>Вступить как:</p>
     <button class="btn" data-act="leader">Главный${g.leader ? ' (занят)' : ''}</button>
     <button class="btn secondary" data-act="member">Шпана</button>
     <button class="btn secondary" data-act="close">Отмена</button>
   `, {
-    leader: () => joinGroup(t, 'leader'),
-    member: () => joinGroup(t, 'member')
+    leader: () => joinGroup(gid, 'leader'),
+    member: () => joinGroup(gid, 'member')
   });
 }
 
-function joinGroup(t, role) {
-  const g = groups[t.id];
+function joinGroup(gid, role) {
+  const g = S.groups[gid];
   const email = currentEmail;
-
   if (role === 'leader') {
     if (g.leader) return msg(`Главный уже есть: ${displayName(g.leader)}. Вступите как шпана.`);
     g.leader = email;
-  } else {
-    if (g.members.length >= MAX_MEMBERS) return msg('В группировке нет мест (максимум 30).');
+  } else if (g.members.length >= MAX_MEMBERS) {
+    return msg('В группировке нет мест (максимум 30).');
   }
-
-  g.members.push(email);
-  saveGroups();
-  setUser(email, { group: t.id, role });
-  msg(`Вы вступили в «${t.name}» как ${role === 'leader' ? 'главный' : 'шпана'}.`);
+  if (!g.members.includes(email)) g.members.push(email);
+  saveS();
+  setUser(email, { group: gid, role });
+  msg(`Вы вступили в «${gname(gid)}» как ${role === 'leader' ? 'главный' : 'шпана'}.`);
+  renderAll();
 }
 
-function showOwnGroup(t) {
-  const g = groups[t.id];
-  const isLeader = me().role === 'leader';
-  const enemy = g.enemy ? groupName(g.enemy) : 'ни с кем';
+// ================= СВОЯ ГРУППИРОВКА =================
+function showOwnGroup(gid) {
+  const g = S.groups[gid];
+  const u = me();
+  const isLeader = u.role === 'leader';
+  const zones = TERRITORIES.filter(t => S.owner[t.id] === gid).length;
 
   let html = `
-    <h2>${esc(t.name)}</h2>
+    <h2>${esc(gname(gid))}</h2>
     <p>Лидер: ${g.leader ? esc(displayName(g.leader)) : 'нет'}</p>
     <p>Людей: ${g.members.length} / ${MAX_MEMBERS}</p>
-    <p>Воюет с: ${esc(enemy)}</p>
+    <p>В больнице: ${hospitalNow(gid)} · Свободно: ${freeCount(gid)}</p>
+    <p>Территорий: ${zones}</p>
+    <p>Воюет с: ${g.enemy ? esc(gname(g.enemy)) : 'ни с кем'}</p>
     <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>
   `;
-  const acts = { leave: () => leaveGroup(t) };
+  const acts = { leave: () => leaveGroup(gid) };
 
   if (isLeader) {
     html += `
-      <button class="btn" data-act="trade">Торговля</button>
       <button class="btn" data-act="war">Война</button>
-      <button class="btn" data-act="diplo">Дипломатия</button>
-    `;
+      <button class="btn secondary" data-act="trade">Торговля</button>
+      <button class="btn secondary" data-act="diplo">Дипломатия</button>`;
+    acts.war = () => showWar(gid);
     acts.trade = () => msg('Торговля: скоро');
-    acts.war = () => msg('Война: скоро');
     acts.diplo = () => msg('Дипломатия: скоро');
   } else {
-    const label = g.leader ? `Лидер: ${displayName(g.leader)} (стать лидером)` : 'Стать главным';
+    const label = g.leader ? `Стать лидером (сейчас: ${displayName(g.leader)})` : 'Стать главным';
     html += `<button class="btn secondary" data-act="takeover">${esc(label)}</button>`;
-    acts.takeover = () => takeLeadership(t);
+    acts.takeover = () => takeLeadership(gid);
   }
-
   html += `<button class="btn secondary" data-act="leave">Выйти из группировки</button>`;
   openModal(html, acts);
 }
 
-function takeLeadership(t) {
+function takeLeadership(gid) {
   if (!confirm('Стать главным этой группировки?')) return;
-  const g = groups[t.id];
-  if (g.leader) setUser(g.leader, { role: 'member' });
+  const g = S.groups[gid];
+  if (g.leader && g.leader !== currentEmail) setUser(g.leader, { role: 'member' });
   g.leader = currentEmail;
-  saveGroups();
+  saveS();
   setUser(currentEmail, { role: 'leader' });
-  showOwnGroup(t);
+  renderAll();
+  showOwnGroup(gid);
 }
 
-function leaveGroup(t) {
-  const g = groups[t.id];
+function leaveGroup(gid) {
+  const g = S.groups[gid];
   const email = currentEmail;
   g.members = g.members.filter(e => e !== email);
   if (g.leader === email) g.leader = null;
-  saveGroups();
+  saveS();
   setUser(email, { group: null, role: null });
-  msg(`Вы вышли из «${t.name}».`);
+  renderAll();
+  msg(`Вы вышли из «${gname(gid)}».`);
+}
+
+// ================= ВОЙНА =================
+function showWar(gid) {
+  const g = S.groups[gid];
+  if (g.enemy) {
+    openModal(`
+      <h2>Война</h2>
+      <p>Воюем с: «${esc(gname(g.enemy))}»</p>
+      <p>Чтобы атаковать, нажмите на территорию врага на карте.</p>
+      <button class="btn" data-act="atk">Выбрать точку атаки</button>
+      <button class="btn secondary" data-act="close">Закрыть</button>
+    `, {
+      atk: () => { closeModal(); setAttackMode(true); }
+    });
+    return;
+  }
+
+  const acts = {};
+  let buttons = '';
+  TERRITORIES.filter(t => t.id !== gid).forEach(t => {
+    const busy = S.groups[t.id].enemy ? ' (в войне)' : '';
+    buttons += `<button class="btn secondary" data-act="w:${t.id}">Объявить войну: ${esc(t.name)}${busy}</button>`;
+    acts['w:' + t.id] = () => declareWar(gid, t.id);
+  });
+  openModal(`<h2>Война</h2><p>Выберите группировку:</p>${buttons}
+    <button class="btn secondary" data-act="close">Отмена</button>`, acts);
+}
+
+function declareWar(a, d) {
+  const A = S.groups[a], D = S.groups[d];
+  if (A.enemy || D.enemy) return msg('Одна из группировок уже в войне.');
+  A.enemy = d;
+  D.enemy = a;
+  news(`«${gname(a)}» объявила войну «${gname(d)}»`);
+  saveS();
+  renderAll();
+  msg(`Война объявлена: «${gname(d)}»`);
+}
+
+// ================= АТАКА =================
+let attackMode = false;
+function setAttackMode(on) {
+  attackMode = on;
+  document.getElementById('atkBanner').classList.toggle('active', on);
+}
+document.getElementById('atkCancel').onclick = () => setAttackMode(false);
+
+function onAttackClick(z, latlng) {
+  const u = me();
+  const owner = S.owner[z.id];
+  if (u.role !== 'leader' || !u.group) return msg('Атаковать может только главный.');
+  if (owner === u.group) return msg('Это ваша территория.');
+  if (S.groups[u.group].enemy !== owner) return msg('Вы не в войне с этой группировкой.');
+  askAttack(z, latlng);
+}
+
+function askAttack(z, latlng) {
+  const avail = freeCount(me().group);
+  if (avail < 1) return msg('Нет свободных людей (часть в больнице или уже в бою).');
+  openModal(`
+    <h2>Атака: ${esc(z.name)}</h2>
+    <p>Группировка: «${esc(gname(S.owner[z.id]))}»</p>
+    <p>Свободно людей: ${avail}</p>
+    <input type="number" id="atkN" min="1" max="${avail}" value="${Math.min(avail, 10)}">
+    <button class="btn" data-act="go">Атаковать</button>
+    <button class="btn secondary" data-act="close">Отмена</button>
+  `, {
+    go: () => {
+      const n = parseInt(document.getElementById('atkN').value, 10);
+      if (!(n >= 1 && n <= avail)) return msg(`Введите число от 1 до ${avail}`);
+      setAttackMode(false);
+      startAttack(z, latlng, n);
+    }
+  });
+}
+
+function startAttack(z, latlng, n) {
+  const attG = me().group;
+  const defG = S.owner[z.id];
+  const b = {
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    att: attG, def: defG, zone: z.id,
+    lat: latlng.lat, lng: latlng.lng,
+    att_n: n, def_n: null,
+    status: 'wait', expires: Date.now() + DEFEND_MS, doneAt: 0
+  };
+  S.battles.push(b);
+  // если у защиты нет главаря — территория забирается сразу
+  if (!S.groups[defG].leader) resolveBattle(b, 0);
+  saveS();
+  renderAll();
+}
+
+// защитник выставляет людей
+function askDefend(b) {
+  const avail = freeCount(b.def);
+  openModal(`
+    <h2>Защита: ${esc(T(b.zone).name)}</h2>
+    <p>Нападает: «${esc(gname(b.att))}», ${b.att_n} чел.</p>
+    <p>Свободно у вас: ${avail}</p>
+    <input type="number" id="defN" min="0" max="${avail}" value="${Math.min(avail, 10)}">
+    <button class="btn" data-act="go">Защищать</button>
+    <button class="btn secondary" data-act="close">Не отвечать</button>
+  `, {
+    go: () => {
+      const n = parseInt(document.getElementById('defN').value, 10) || 0;
+      defend(b, n);
+    }
+  });
+}
+
+function defend(b, n) {
+  if (b.status !== 'wait') return closeModal();
+  const avail = freeCount(b.def);
+  if (n < 0 || n > avail) return msg(`Можно выставить от 0 до ${avail}`);
+  resolveBattle(b, n);
+  saveS();
+  closeModal();
+  renderAll();
+}
+
+// итог боя
+function resolveBattle(b, defN) {
+  b.def_n = defN;
+  b.status = 'done';
+  b.doneAt = Date.now();
+  const attWins = b.att_n > defN;   // при равенстве побеждает защита
+  if (attWins) S.owner[b.zone] = b.att;
+
+  // проигравшие уходят в больницу на 30 секунд
+  const loser = attWins ? b.def : b.att;
+  const loserN = attWins ? defN : b.att_n;
+  if (loser && loserN > 0) {
+    S.groups[loser].hospital.push({ n: loserN, until: Date.now() + HOSPITAL_MS });
+  }
+
+  const zn = T(b.zone).name;
+  news(attWins
+    ? `«${gname(b.att)}» взяла «${zn}» (${b.att_n} против ${defN})`
+    : `«${gname(b.def)}» отбила «${zn}» (${defN} против ${b.att_n})`);
+}
+
+// ================= ФИГУРКИ НА КАРТЕ =================
+function figSvg(color) {
+  return `<svg width="8" height="14" viewBox="0 0 8 14">
+    <circle cx="4" cy="2.2" r="2" fill="${color}"/>
+    <path d="M4 4.5v5M4 6L1 8.5M4 6l3 2.5M4 9.5L1.5 13M4 9.5l2.5 3.5" stroke="${color}" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+function figs(n, color) {
+  return figSvg(color).repeat(Math.min(n, MAX_MEMBERS));
+}
+
+// ================= ВЫЗОВЫ И ИНФО =================
+let alertsKey = '';
+function renderAlerts() {
+  const box = document.getElementById('alerts');
+  const u = currentEmail ? me() : null;
+  if (!u) return;
+  let html = '';
+  const parts = [];
+
+  // вызовы для защитника (главный группировки, на которую напали)
+  S.battles.filter(b => b.status === 'wait' && u.role === 'leader' && u.group && b.def === u.group && S.groups[b.def].leader === currentEmail)
+    .forEach(b => {
+      parts.push(b.id);
+      html += `<div class="alert"><span>Вызов от «${esc(gname(b.att))}» на «${esc(T(b.zone).name)}»: ${b.att_n} чел.</span>
+        <button class="btn" data-bid="${b.id}">Ответить</button></div>`;
+    });
+
+  // ожидание для атакующего
+  S.battles.filter(b => b.status === 'wait' && u.role === 'leader' && u.group && b.att === u.group)
+    .forEach(b => {
+      parts.push('a' + b.id);
+      const t = new Date(b.expires).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      html += `<div class="alert info"><span>Ждём ответа «${esc(gname(b.def))}» на «${esc(T(b.zone).name)}» до ${t}</span></div>`;
+    });
+
+  const key = parts.join(',');
+  if (key === alertsKey) return;
+  alertsKey = key;
+  box.innerHTML = html;
+}
+
+document.getElementById('alerts').addEventListener('click', e => {
+  const id = e.target.dataset.bid;
+  if (!id) return;
+  const b = S.battles.find(x => x.id === id);
+  if (b && b.status === 'wait') askDefend(b);
+});
+
+function renderNews() {
+  document.getElementById('news').textContent = S.news.slice(0, 2).join('  ·  ');
 }
 
 // ================= КАРТА =================
 let map = null;
+let battleLayer = null;
+const polys = {};
 
 document.getElementById('btnPlay').onclick = () => {
   showScreen('game');
   initMap();
 };
-document.getElementById('btnBack').onclick = () => showScreen('menu');
+document.getElementById('btnBack').onclick = () => {
+  setAttackMode(false);
+  showScreen('menu');
+};
 
 function initMap() {
-  if (map) { setTimeout(() => map.invalidateSize(), 100); return; }
+  if (map) { setTimeout(() => map.invalidateSize(), 100); renderAll(); return; }
 
-  // doubleClickZoom выключен, чтобы двойной клик открывал меню, а не зумил карту
   map = L.map('map', { doubleClickZoom: false }).setView([55.8325, 37.9710], 16);
-
   L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 19, attribution: 'Tiles &copy; Esri &mdash; Esri, Maxar, Earthstar Geographics' }
   ).addTo(map);
 
-  TERRITORIES.forEach(t => {
-    const poly = L.polygon(t.coords.map(c => [c[1], c[0]]), {
-      color: t.color,
-      weight: 2,
-      fillColor: t.color,
-      fillOpacity: 0.85
+  TERRITORIES.forEach(z => {
+    const poly = L.polygon(z.coords.map(c => [c[1], c[0]]), {
+      weight: 2, fillOpacity: 0.85
     }).addTo(map);
-
-    poly.bindTooltip(() => tooltipHtml(t), { sticky: true });
-    poly.on('dblclick', () => onTerritoryDblClick(t));
+    poly.bindTooltip(() => zoneTip(z), { sticky: true });
+    poly.on('click', e => { if (attackMode) onAttackClick(z, e.latlng); });
+    poly.on('dblclick', () => onZoneDbl(z));
+    polys[z.id] = poly;
   });
 
+  battleLayer = L.layerGroup().addTo(map);
+  renderAll();
   setTimeout(() => map.invalidateSize(), 100);
+}
+
+function renderZones() {
+  TERRITORIES.forEach(z => {
+    const c = gcolor(S.owner[z.id]);
+    if (polys[z.id]) polys[z.id].setStyle({ color: c, fillColor: c });
+  });
+}
+
+function renderBattles() {
+  battleLayer.clearLayers();
+  S.battles.forEach(b => {
+    const left = `<div class="fig-row att">${figs(b.att_n, gcolor(b.att))}</div>`;
+    const right = (b.def_n && b.def_n > 0) ? `<div class="fig-row def">${figs(b.def_n, gcolor(b.def))}</div>` : '';
+    L.marker([b.lat, b.lng], {
+      interactive: false,
+      icon: L.divIcon({
+        className: 'bt-icon',
+        html: `<div class="battle-pt">${left}${right}</div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      })
+    }).addTo(battleLayer);
+  });
+}
+
+function renderAll() {
+  if (!map) return;
+  renderZones();
+  renderBattles();
+  renderAlerts();
+  renderNews();
+}
+
+// ================= ТАЙМЕР =================
+function tick() {
+  const now = Date.now();
+  let changed = false;
+
+  // время ответа вышло: защита не ответила, атака проходит
+  S.battles.forEach(b => {
+    if (b.status === 'wait' && now >= b.expires) { resolveBattle(b, 0); changed = true; }
+  });
+  // убираем старые бои с карты
+  S.battles = S.battles.filter(b => b.status === 'wait' || now - b.doneAt < DONE_SHOW_MS);
+  // выходим из больницы
+  Object.values(S.groups).forEach(g => {
+    const l = g.hospital.length;
+    g.hospital = g.hospital.filter(h => h.until > now);
+    if (g.hospital.length !== l) changed = true;
+  });
+
+  if (changed) saveS();
+  renderAll();
 }
 
 // ================= СТАРТ =================
@@ -427,6 +712,7 @@ function initMap() {
   const session = localStorage.getItem(SESSION_KEY);
   if (session && getUsers()[session]) openMenu(session);
   else showScreen('auth');
+  setInterval(tick, 1000);
 })();
 </script>
 </body>
