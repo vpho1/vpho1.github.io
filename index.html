@@ -147,12 +147,31 @@ const START_MONEY = 1000;
 const SECTOR_R = 35;
 const SQUAD_SPEED = 12;
 const ADMIN_PASS = '1234-qwer-4321';
+const PORT_HOLD_MS = 3000;     // сколько отряд должен простоять в порту
+const BOAT_MS = 15000;         // время одного перехода лодки
+const BOAT_PRICE = 5000;
 
 const BUILD = {
   gym:    { name: 'Качалка', cost: 300,  limit: 1, icon: 'К', color: '#ef6c00', periodMs: 2 * 60 * 1000, gain: { men: 1 } },
   stall:  { name: 'Ларёк',   cost: 100,  limit: 4, icon: 'Л', color: '#00838f', periodMs: 60 * 1000,     gain: { money: 10 } },
   market: { name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
 };
+
+// Порт 1 (квадрат причала). Координаты [широта, долгота]
+const PORT1 = [
+  [55.830116, 37.9628419], [55.829843, 37.9619367], [55.8292686, 37.9624441],
+  [55.8295282, 37.9633751], [55.8295283, 37.9633745], [55.830116, 37.9628419]
+];
+// Порт 2 (берег)
+const PORT2 = [
+  [55.8244828,37.9618552],[55.8246438,37.9620485],[55.8247622,37.962364],[55.8247121,37.9626639],
+  [55.8244489,37.9622333],[55.8244127,37.9621778],[55.8242117,37.9622653],[55.8241243,37.9623507],
+  [55.8239922,37.9623203],[55.8237366,37.9624437],[55.8236017,37.9623587],[55.8237549,37.9619962],
+  [55.8239227,37.9621783],[55.8239758,37.9621519],[55.8240633,37.9619953],[55.8241618,37.9618941],
+  [55.8243326,37.9618534],[55.8243314,37.9618541],[55.8244828,37.9618552]
+];
+const DOCK_IN = [55.8244061, 37.9622816];    // причал порта 2
+const LAKE_OUT = [55.8242749, 37.9628606];   // выход из порта 2 в озеро
 
 // Стартовые территории (координаты [долгота, широта])
 const DEFS = [
@@ -215,7 +234,9 @@ function loadGroups() {
       zone: g.zone !== undefined ? g.zone : d.coords.map(c => [c[1], c[0]]),
       buildings: g.buildings || [],
       money: g.money || 0,
-      bonusMen: g.bonusMen || 0
+      bonusMen: g.bonusMen || 0,
+      portOpen: !!g.portOpen,
+      boat: g.boat || null
     };
   });
   return saved;
@@ -247,6 +268,12 @@ const leaderName = gid => groups[gid].leader ? esc(displayName(groups[gid].leade
 const fmtTime = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const inHospital = e => !!users[e] && (users[e].hospitalUntil || 0) > Date.now();
 const isLeaderOf = gid => { const u = me(); return !!u && u.group === gid && u.role === 'leader'; };
+
+function ringCenter(ring) {
+  return [ring.reduce((a, p) => a + p[0], 0) / ring.length, ring.reduce((a, p) => a + p[1], 0) / ring.length];
+}
+const PORT1_CENTER = ringCenter(PORT1);
+const PLACES = { port1: PORT1_CENTER, lake: LAKE_OUT, port2: DOCK_IN };
 
 function cleanMercs(gid) {
   const g = groups[gid];
@@ -313,10 +340,8 @@ function ownerAt(lat, lng) {
 function baseOf(gid) {
   const z = groups[gid].zone;
   if (!z) return null;
-  return {
-    lat: z.reduce((a, p) => a + p[0], 0) / z.length,
-    lng: z.reduce((a, p) => a + p[1], 0) / z.length
-  };
+  const c = ringCenter(z);
+  return { lat: c[0], lng: c[1] };
 }
 
 // ================= ЭКРАНЫ И МОДАЛКА =================
@@ -568,8 +593,7 @@ function showOwnGroup(gid) {
     });
   }
 
-  h += `
-    <button class="btn" data-act="treasury">Казна</button>`;
+  h += `<button class="btn" data-act="treasury">Казна</button>`;
   acts.treasury = () => showTreasury(gid);
 
   if (isLeader) {
@@ -756,7 +780,6 @@ function placeBuilding(gid, type, ll) {
   msg(`«${b.name}» построена.`);
 }
 
-// Доход считается по прошедшему времени, поэтому работает и при закрытом сайте
 function applyIncome() {
   const now = Date.now();
   let changed = false;
@@ -842,7 +865,8 @@ function createSquad(gid, kind, name, nRaw) {
     count: n,
     lat: b.lat + k * 0.00006,
     lng: b.lng + (k % 2) * 0.00006,
-    state: 'idle'
+    state: 'idle',
+    zoneSince: null
   });
   saveAll();
   refreshMap();
@@ -906,7 +930,8 @@ function moveSquad(sid, lat, lng) {
     fromLat: p.lat, fromLng: p.lng,
     toLat: lat, toLng: lng,
     startT: now, endT: now + dur,
-    state: 'moving'
+    state: 'moving',
+    zoneSince: null
   });
   saveAll();
   refreshMap();
@@ -915,8 +940,13 @@ function moveSquad(sid, lat, lng) {
 
 function arrive(s) {
   s.lat = s.toLat; s.lng = s.toLng; s.state = 'idle';
-  const t = ownerAt(s.lat, s.lng);
 
+  // Причал порта 1: здесь не захват, а ожидание 3 секунды
+  if (inPoly(s.lat, s.lng, PORT1)) {
+    return toast(`Отряд «${s.name}» на причале. Стойте 3 секунды, чтобы открыть порт.`);
+  }
+
+  const t = ownerAt(s.lat, s.lng);
   if (t === s.gid) return toast(`Отряд «${s.name}» на своей территории.`);
   if (t === null) {
     captureSector(s.lat, s.lng, s.gid);
@@ -935,16 +965,163 @@ function arrive(s) {
   toast(`Отряд «${s.name}» вступил в бой за точку «${gname(t)}». Ждём ответа лидера.`);
 }
 
+// ================= ПОРТ И ЛОДКА =================
+function boatPos(b, t) {
+  if (b.state !== 'moving') return { lat: b.lat, lng: b.lng };
+  const f = Math.min(1, Math.max(0, (t - b.startT) / (b.endT - b.startT)));
+  return {
+    lat: b.fromLat + (b.toLat - b.fromLat) * f,
+    lng: b.fromLng + (b.toLng - b.fromLng) * f
+  };
+}
+
+function anyMoving() {
+  return squads.some(s => s.state === 'moving') ||
+    Object.values(groups).some(g => g.boat && g.boat.state === 'moving');
+}
+
+// Клик по квадрату порта 1
+function onPort1Click() {
+  if (mode) return;
+  const u = me();
+  if (!u || !u.group) return msg('Порт закрыт. Отряд должен простоять здесь 3 секунды.');
+  if (!groups[u.group].portOpen) return msg('Порт закрыт. Отправьте отряд своей группировки на причал и подержите 3 секунды.');
+  openPortMenu(u.group);
+}
+
+function openPortMenu(gid) {
+  const g = groups[gid];
+  const leader = isLeaderOf(gid);
+  const b = g.boat;
+  let h = `<h2>Порт 1</h2><p>Казна: ${g.money} руб</p>`;
+  const acts = {};
+
+  if (!b) {
+    h += `<p>Лодки пока нет.</p>`;
+    if (leader) {
+      h += `<button class="btn" data-act="buy">Купить лодку (${BOAT_PRICE} руб)</button>`;
+      acts.buy = () => confirmBuyBoat(gid);
+    }
+  }
+  h += `<button class="btn secondary" data-act="build">Собрать лодку</button>`;
+  acts.build = () => msg('Сборка лодки: в разработке.');
+
+  if (b) {
+    const stateText = { port1: 'стоит в порту 1', lake: 'в озере', port2: 'у причала порта 2', moving: 'в пути' };
+    h += `<p>Лодка: ${stateText[b.state]}</p>`;
+    if (leader) {
+      if (b.state === 'port1') {
+        h += `<button class="btn" data-act="sail-lake">Выйти в озеро</button>`;
+        acts['sail-lake'] = () => sailBoat(gid, 'lake');
+      }
+      if (b.state === 'lake') {
+        h += `<button class="btn" data-act="sail-port2">Причалить к порту 2</button>
+              <button class="btn secondary" data-act="sail-port1">Вернуться в порт 1</button>`;
+        acts['sail-port2'] = () => sailBoat(gid, 'port2');
+        acts['sail-port1'] = () => sailBoat(gid, 'port1');
+      }
+      if (b.state === 'port2') {
+        h += `<button class="btn" data-act="ashore">Сойти на берег (порт 2)</button>
+              <button class="btn secondary" data-act="sail-lake">Отчалить в озеро</button>`;
+        acts.ashore = () => msg('Вы сошли на берег порта 2.');
+        acts['sail-lake'] = () => sailBoat(gid, 'lake');
+      }
+    } else {
+      h += `<p>Управлять лодкой может только главный.</p>`;
+    }
+  }
+
+  h += `<button class="btn secondary" data-act="close">Закрыть</button>`;
+  openModal(h, acts);
+}
+
+function confirmBuyBoat(gid) {
+  if (!isLeaderOf(gid)) return msg('Покупать лодку может только главный.');
+  if (groups[gid].boat) return msg('Лодка уже есть.');
+  if (groups[gid].money < BOAT_PRICE) return msg(`Не хватает денег в казне. Нужно ${BOAT_PRICE} руб, в казне ${groups[gid].money} руб.`);
+  openModal(`
+    <h2>Покупка</h2>
+    <p>Вы точно хотите купить лодку за ${BOAT_PRICE} руб на всегда?</p>
+    <button class="btn" data-act="yes">Да, купить</button>
+    <button class="btn secondary" data-act="no">Нет</button>
+  `, {
+    yes: () => buyBoat(gid),
+    no: () => openPortMenu(gid)
+  });
+}
+
+function buyBoat(gid) {
+  const g = groups[gid];
+  if (g.boat) return msg('Лодка уже есть.');
+  if (g.money < BOAT_PRICE) return msg('Не хватает денег в казне.');
+  g.money -= BOAT_PRICE;
+  g.boat = { state: 'port1', lat: PORT1_CENTER[0], lng: PORT1_CENTER[1] };
+  saveAll(); refreshMap();
+  msg('Лодка куплена навсегда и стоит в порту 1.');
+}
+
+function sailBoat(gid, dest) {
+  if (!isLeaderOf(gid)) return msg('Управлять лодкой может только главный.');
+  const b = groups[gid].boat;
+  if (!b) return msg('Лодки нет.');
+  if (b.state === 'moving') return msg('Лодка уже в пути.');
+  const to = PLACES[dest];
+  const now = Date.now();
+  const p = boatPos(b, now);
+  Object.assign(b, {
+    state: 'moving', dest,
+    lat: p.lat, lng: p.lng,
+    fromLat: p.lat, fromLng: p.lng,
+    toLat: to[0], toLng: to[1],
+    startT: now, endT: now + BOAT_MS
+  });
+  saveAll(); refreshMap();
+  const names = { lake: 'в озеро', port2: 'к порту 2', port1: 'в порт 1' };
+  toast(`Лодка выходит ${names[dest]}.`);
+}
+
+// Проверка, что отряд простоял в порту 1 нужное время. Вызывается из tick.
+function checkPortHold(now) {
+  let changed = false;
+  squads.forEach(s => {
+    if (s.state === 'idle' && inPoly(s.lat, s.lng, PORT1)) {
+      if (!s.zoneSince) s.zoneSince = now;
+      if (now - s.zoneSince >= PORT_HOLD_MS && !groups[s.gid].portOpen) {
+        groups[s.gid].portOpen = true;
+        changed = true;
+        toast(`Порт 1 открыт для группировки «${gname(s.gid)}».`);
+      }
+    } else {
+      s.zoneSince = null;
+    }
+  });
+  return changed;
+}
+
+// ================= ТИК =================
 setInterval(tick, 1000);
 function tick() {
   if (!currentEmail) return;
   const now = Date.now();
   let changed = false;
+
   squads.forEach(s => {
     if (s.state === 'moving' && now >= s.endT) { arrive(s); changed = true; }
   });
+
+  Object.values(groups).forEach(g => {
+    const b = g.boat;
+    if (b && b.state === 'moving' && now >= b.endT) {
+      b.state = b.dest;
+      b.lat = b.toLat; b.lng = b.toLng;
+      changed = true;
+    }
+  });
+
+  if (checkPortHold(now)) changed = true;
+
   if (changed) { saveAll(); refreshMap(); }
-  else if (squads.some(s => s.state === 'moving') && map) refreshSquads();
+  else if (anyMoving() && map) refreshSquads();
   applyIncome();
 }
 
@@ -1257,7 +1434,7 @@ function showAdminPanel() {
     <p>Деньги в казну (руб.):</p>
     <input type="number" id="admMoney" min="1" placeholder="Сумма">
     <button class="btn" data-act="money">Выдать деньги</button>
-    <p>Сброс карты: убирает захваченные точки, отряды, постройки, войны, вызовы и письма. Аккаунты и деньги игроков не трогаются.</p>
+    <p>Сброс карты: убирает захваченные точки, отряды, постройки, лодки, порты, войны, вызовы и письма. Аккаунты и деньги игроков не трогаются.</p>
     <button class="btn secondary" data-act="reset">Сбросить карту</button>
     <button class="btn secondary" data-act="close">Закрыть</button>
   `, {
@@ -1276,7 +1453,7 @@ function showAdminPanel() {
       msg(`В казну «${gname(gid)}» выдано ${n} руб.`);
     },
     reset: () => {
-      if (!confirm('Сбросить карту? Захваты, отряды, постройки и войны будут удалены.')) return;
+      if (!confirm('Сбросить карту? Захваты, отряды, постройки, лодки и войны будут удалены.')) return;
       sectors = [];
       squads = [];
       DEFS.forEach(d => {
@@ -1288,6 +1465,8 @@ function showAdminPanel() {
         g.buildings = [];
         g.mercs = [];
         g.bonusMen = 0;
+        g.portOpen = false;
+        g.boat = null;
       });
       Object.values(groups).forEach(g => { g.money = 0; });
       saveAll();
@@ -1404,6 +1583,7 @@ function initMap() {
 function refreshMap() {
   if (!map) return;
   zoneLayer.clearLayers();
+
   DEFS.forEach(d => {
     const z = groups[d.id].zone;
     if (!z) return;
@@ -1412,6 +1592,20 @@ function refreshMap() {
       .bindTooltip(() => groupTip(d.id), { sticky: true })
       .on('dblclick', () => onGroupDblClick(d.id));
   });
+
+  // Порт 1 и порт 2
+  L.polygon(PORT1, { color: '#00acc1', weight: 2, fillColor: '#00acc1', fillOpacity: 0.4 })
+    .addTo(zoneLayer)
+    .bindTooltip('Порт 1 (причал)', { sticky: true })
+    .on('click', onPort1Click);
+  L.polygon(PORT2, { color: '#00acc1', weight: 2, fillColor: '#00acc1', fillOpacity: 0.4 })
+    .addTo(zoneLayer)
+    .bindTooltip('Порт 2 (берег)', { sticky: true });
+  L.circleMarker(DOCK_IN, { radius: 5, color: '#fff', fillColor: '#00e5ff', fillOpacity: 1, weight: 1 })
+    .addTo(zoneLayer).bindTooltip('Причал порта 2: вход на берег', { sticky: true });
+  L.circleMarker(LAKE_OUT, { radius: 5, color: '#fff', fillColor: '#ff7043', fillOpacity: 1, weight: 1 })
+    .addTo(zoneLayer).bindTooltip('Выход из порта 2 в озеро', { sticky: true });
+
   sectorLayer.clearLayers();
   sectors.forEach(s => {
     L.circle([s.lat, s.lng], { radius: SECTOR_R, color: gcolor(s.owner), fillColor: gcolor(s.owner), fillOpacity: 0.8, weight: 2 })
@@ -1448,6 +1642,7 @@ function refreshSquads() {
   if (!squadLayer) return;
   squadLayer.clearLayers();
   const now = Date.now();
+
   squads.forEach(s => {
     const p = squadPos(s, now);
     const icon = L.divIcon({
@@ -1463,6 +1658,21 @@ function refreshSquads() {
         { sticky: true }
       )
       .on('click', () => { if (isLeaderOf(s.gid)) openSquadMenu(s.id); });
+  });
+
+  Object.entries(groups).forEach(([gid, g]) => {
+    if (!g.boat) return;
+    const p = boatPos(g.boat, now);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="sq" style="background:${gcolor(gid)}">⛵</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    L.marker([p.lat, p.lng], { icon })
+      .addTo(squadLayer)
+      .bindTooltip(`<b>Лодка</b><br>${esc(gname(gid))}`, { sticky: true })
+      .on('click', () => { if (me() && me().group === gid) openPortMenu(gid); });
   });
 }
 
