@@ -154,6 +154,7 @@ const BUILD = {
   market: { name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
 };
 
+// Стартовые территории (координаты [долгота, широта])
 const DEFS = [
   {
     id: 'univ', name: 'Универсам', color: '#2e7d32',
@@ -394,6 +395,7 @@ $('loginForm').addEventListener('submit', async e => {
 function login(email) {
   currentEmail = email;
   localStorage.setItem(K_SESSION, email);
+  applyIncome();
   renderMenu();
   showScreen('menu');
 }
@@ -564,6 +566,13 @@ function showOwnGroup(gid) {
       </div>`;
       acts['def:' + ch.id] = () => showDefend(gid, ch.id);
     });
+  }
+
+  h += `
+    <button class="btn" data-act="treasury">Казна</button>`;
+  acts.treasury = () => showTreasury(gid);
+
+  if (isLeader) {
     h += `
       <button class="btn" data-act="squads">Отряды</button>
       <button class="btn" data-act="build">Стройка</button>
@@ -584,12 +593,55 @@ function showOwnGroup(gid) {
   h += `
     <button class="btn" data-act="call">Позвать чушпанов</button>
     <button class="btn" data-act="merc">Наёмники с Раена</button>
-    <button class="btn secondary" data-act="leave">Выйти из группировки</button>`;
+    <button class="btn secondary" data-act="leave">Выйти из группировки</button>
+    <button class="btn secondary" data-act="back">← Назад</button>`;
   acts.call = () => showInvite(gid);
   acts.merc = () => showMercs(gid);
   acts.leave = () => leaveGroup(gid);
+  acts.back = closeModal;
 
   openModal(h, acts);
+}
+
+// ================= КАЗНА =================
+function showTreasury(gid) {
+  const g = groups[gid];
+  const isLeader = isLeaderOf(gid);
+  let h = `
+    <h2>Казна «${esc(gname(gid))}»</h2>
+    <p>В казне: ${g.money} руб</p>
+    <p>У вас: ${me().money} руб</p>
+    <input type="number" id="trsN" min="1" placeholder="Сумма, руб">
+    <button class="btn" data-act="put">Положить в казну</button>`;
+  if (isLeader) h += `<button class="btn secondary" data-act="take">Взять из казны</button>`;
+  h += `<button class="btn secondary" data-act="back">Назад</button>`;
+  const acts = {
+    put: () => treasuryPut(gid),
+    back: () => showOwnGroup(gid)
+  };
+  if (isLeader) acts.take = () => treasuryTake(gid);
+  openModal(h, acts);
+}
+
+function treasuryPut(gid) {
+  const n = parseInt($('trsN').value, 10);
+  if (!(n >= 1)) return msg('Введите сумму больше 0.');
+  if (me().money < n) return msg(`Не хватает денег. У вас ${me().money} руб.`);
+  me().money -= n;
+  groups[gid].money += n;
+  saveAll(); renderMenu();
+  msg(`Вы положили ${n} руб в казну.`);
+}
+
+function treasuryTake(gid) {
+  if (!isLeaderOf(gid)) return msg('Брать из казны может только главный.');
+  const n = parseInt($('trsN').value, 10);
+  if (!(n >= 1)) return msg('Введите сумму больше 0.');
+  if (groups[gid].money < n) return msg(`В казне только ${groups[gid].money} руб.`);
+  groups[gid].money -= n;
+  me().money += n;
+  saveAll(); renderMenu();
+  msg(`Вы взяли ${n} руб из казны.`);
 }
 
 function takeLeadership(gid) {
@@ -704,7 +756,7 @@ function placeBuilding(gid, type, ll) {
   msg(`«${b.name}» построена.`);
 }
 
-// Доход: считается по прошедшему времени, даже если сайт был закрыт
+// Доход считается по прошедшему времени, поэтому работает и при закрытом сайте
 function applyIncome() {
   const now = Date.now();
   let changed = false;
@@ -883,10 +935,9 @@ function arrive(s) {
   toast(`Отряд «${s.name}» вступил в бой за точку «${gname(t)}». Ждём ответа лидера.`);
 }
 
-let tickTimer = setInterval(tick, 1000);
+setInterval(tick, 1000);
 function tick() {
   if (!currentEmail) return;
-  applyIncome();
   const now = Date.now();
   let changed = false;
   squads.forEach(s => {
@@ -894,6 +945,7 @@ function tick() {
   });
   if (changed) { saveAll(); refreshMap(); }
   else if (squads.some(s => s.state === 'moving') && map) refreshSquads();
+  applyIncome();
 }
 
 function updateSideBtn() {
@@ -1205,8 +1257,8 @@ function showAdminPanel() {
     <p>Деньги в казну (руб.):</p>
     <input type="number" id="admMoney" min="1" placeholder="Сумма">
     <button class="btn" data-act="money">Выдать деньги</button>
-    <hr style="border-color:#333;margin:14px 0">
-    <button class="btn" data-act="reset" style="background:#b71c1c">Сбросить всю карту и аккаунты</button>
+    <p>Сброс карты: убирает захваченные точки, отряды, постройки, войны, вызовы и письма. Аккаунты и деньги игроков не трогаются.</p>
+    <button class="btn secondary" data-act="reset">Сбросить карту</button>
     <button class="btn secondary" data-act="close">Закрыть</button>
   `, {
     men: () => {
@@ -1224,37 +1276,26 @@ function showAdminPanel() {
       msg(`В казну «${gname(gid)}» выдано ${n} руб.`);
     },
     reset: () => {
-      openModal(`
-        <h2>Точно сбросить?</h2>
-        <p>Удалятся все аккаунты, группировки, территории, постройки, отряды и захваченные точки. Это нельзя отменить.</p>
-        <button class="btn" style="background:#b71c1c" data-act="doReset">Да, сбросить всё</button>
-        <button class="btn secondary" data-act="close">Отмена</button>
-      `, {
-        doReset: resetEverything
+      if (!confirm('Сбросить карту? Захваты, отряды, постройки и войны будут удалены.')) return;
+      sectors = [];
+      squads = [];
+      DEFS.forEach(d => {
+        const g = groups[d.id];
+        g.zone = d.coords.map(c => [c[1], c[0]]);
+        g.enemies = [];
+        g.challenges = [];
+        g.letters = [];
+        g.buildings = [];
+        g.mercs = [];
+        g.bonusMen = 0;
       });
+      Object.values(groups).forEach(g => { g.money = 0; });
+      saveAll();
+      cancelMode();
+      refreshMap();
+      msg('Карта сброшена. Территории вернулись к стартовым.');
     }
   });
-}
-
-function resetEverything() {
-  users = {};
-  sectors = [];
-  squads = [];
-  groups = {};
-  DEFS.forEach(d => {
-    groups[d.id] = {
-      leader: null, members: [], enemies: [], challenges: [], mercs: [], letters: [],
-      zone: null, buildings: [], money: 0, bonusMen: 0
-    };
-  });
-  currentEmail = null;
-  [K_USERS, K_SESSION, K_GROUPS, K_SECTORS, K_SQUADS].forEach(k => localStorage.removeItem(k));
-  saveAll();
-  cancelMode();
-  closeModal();
-  refreshMap();
-  showScreen('auth');
-  msg('Всё сброшено. Карта и аккаунты очищены.');
 }
 
 // ================= РЕЖИМЫ НА КАРТЕ =================
