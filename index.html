@@ -46,6 +46,8 @@
   #hint .hidden { display: none; }
   .leaflet-tooltip { background: #1a1a1a; color: #fff; border: 1px solid #444; font-size: 13px; }
 
+  .side-btn { position: absolute; left: 10px; top: 120px; z-index: 500; width: auto; padding: 10px 12px; font-size: 14px; margin: 0; display: none; }
+
   .man { position: relative; width: 8px; height: 14px; }
   .man::before { content: ''; position: absolute; top: 0; left: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
   .man::after { content: ''; position: absolute; top: 5px; left: 0; width: 8px; height: 9px; border-radius: 2px; background: currentColor; }
@@ -53,6 +55,9 @@
   .man.def { color: #4fc3f7; animation: marchL 0.6s ease-in-out infinite alternate; }
   @keyframes marchR { from { transform: translateX(-2px); } to { transform: translateX(3px); } }
   @keyframes marchL { from { transform: translateX(2px); } to { transform: translateX(-3px); } }
+
+  .sq { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; color: #fff; font: bold 12px Arial; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px #000; }
+  .sq.merc { border-style: dashed; }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
   .modal-bg.active { display: flex; }
@@ -63,6 +68,9 @@
   .inv { background: #222; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
   .inv p { margin-bottom: 8px; font-size: 14px; }
   .inv .btn { width: auto; display: inline-block; padding: 8px 12px; font-size: 14px; margin-right: 6px; }
+
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1a1a1a; border: 1px solid #e53935; color: #fff; padding: 10px 14px; border-radius: 8px; z-index: 1500; display: none; font-size: 14px; max-width: 90%; text-align: center; }
+  #toast.active { display: block; }
 </style>
 </head>
 <body>
@@ -109,6 +117,7 @@
     <button class="btn secondary" id="btnBack">← В меню</button>
   </div>
   <div id="map"></div>
+  <button class="btn secondary side-btn" id="btnSquads">Отряды</button>
   <div id="hint">
     <div id="hintText"></div>
     <div class="hint-btns">
@@ -123,6 +132,8 @@
   <div class="modal" id="modalBody"></div>
 </div>
 
+<div id="toast"></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
 // ================= НАСТРОЙКИ =================
@@ -132,9 +143,9 @@ const MERC_TIME = 10 * 60 * 1000;
 const HOSPITAL_TIME = 30 * 1000;
 const START_MONEY = 1000;
 const SECTOR_R = 35;
+const SQUAD_SPEED = 12;          // метров в секунду
 
-// Стартовые территории (координаты [долгота, широта]).
-// Главный может нарисовать свою заново, кнопкой «Нарисовать территорию».
+// Стартовые территории (координаты [долгота, широта])
 const DEFS = [
   {
     id: 'univ', name: 'Универсам', color: '#2e7d32',
@@ -171,11 +182,13 @@ const DEFS = [
 ];
 
 // ================= ХРАНИЛИЩЕ (в браузере) =================
-const K_USERS = 'raen2_users', K_SESSION = 'raen2_session', K_GROUPS = 'raen2_groups', K_SECTORS = 'raen2_sectors';
+const K_USERS = 'raen2_users', K_SESSION = 'raen2_session', K_GROUPS = 'raen2_groups',
+      K_SECTORS = 'raen2_sectors', K_SQUADS = 'raen2_squads';
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch (e) { return d; } };
 
 let users = load(K_USERS, {});
 let sectors = load(K_SECTORS, []);
+let squads = load(K_SQUADS, []);
 let groups = loadGroups();
 let currentEmail = null;
 
@@ -200,6 +213,7 @@ function saveAll() {
   localStorage.setItem(K_USERS, JSON.stringify(users));
   localStorage.setItem(K_GROUPS, JSON.stringify(groups));
   localStorage.setItem(K_SECTORS, JSON.stringify(sectors));
+  localStorage.setItem(K_SQUADS, JSON.stringify(squads));
 }
 
 async function hashPass(text) {
@@ -220,16 +234,24 @@ const displayName = e => users[e] ? `${users[e].nick} (${users[e].callsign})` : 
 const leaderName = gid => groups[gid].leader ? esc(displayName(groups[gid].leader)) : 'нет';
 const fmtTime = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const inHospital = e => !!users[e] && (users[e].hospitalUntil || 0) > Date.now();
+const isLeaderOf = gid => { const u = me(); return !!u && u.group === gid && u.role === 'leader'; };
 
 function cleanMercs(gid) {
   const g = groups[gid];
   g.mercs = g.mercs.filter(m => m.exp > Date.now());
   return g.mercs;
 }
-function available(gid) {
-  const free = groups[gid].members.filter(e => users[e] && !inHospital(e)).length;
-  return free + cleanMercs(gid).length;
-}
+function freeMen(gid) { return groups[gid].members.filter(e => users[e] && !inHospital(e)).length; }
+function mercCount(gid) { return cleanMercs(gid).length; }
+
+// Люди, которые сидят в отрядах, не участвуют в атаке и обороне базы
+function squadsOf(gid) { return squads.filter(s => s.gid === gid); }
+function reservedMen(gid) { return squadsOf(gid).filter(s => s.kind === 'men').reduce((a, s) => a + s.count, 0); }
+function reservedMercs(gid) { return squadsOf(gid).filter(s => s.kind === 'merc').reduce((a, s) => a + s.count, 0); }
+function menPool(gid) { return Math.max(0, freeMen(gid) - reservedMen(gid)); }
+function mercPool(gid) { return Math.max(0, mercCount(gid) - reservedMercs(gid)); }
+function available(gid) { return menPool(gid) + mercPool(gid); }
+
 function sendToHospital(gid, count) {
   const g = groups[gid];
   const until = Date.now() + HOSPITAL_TIME;
@@ -276,6 +298,14 @@ function ownerAt(lat, lng) {
   }
   return null;
 }
+function baseOf(gid) {
+  const z = groups[gid].zone;
+  if (!z) return null;
+  return {
+    lat: z.reduce((a, p) => a + p[0], 0) / z.length,
+    lng: z.reduce((a, p) => a + p[1], 0) / z.length
+  };
+}
 
 // ================= ЭКРАНЫ И МОДАЛКА =================
 const screens = { auth: $('auth'), menu: $('menu'), game: $('game') };
@@ -298,6 +328,15 @@ function openModal(html, acts = {}) {
 function closeModal() { modalBg.classList.remove('active'); }
 function msg(text) {
   openModal(`<p>${esc(text)}</p><button class="btn" data-act="close">OK</button>`);
+}
+
+let toastTimer = null;
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text;
+  t.classList.add('active');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('active'), 4000);
 }
 
 // ================= ВХОД / РЕГИСТРАЦИЯ =================
@@ -364,6 +403,7 @@ function renderMenu() {
   const hosp = inHospital(currentEmail) ? ` | в больнице до ${fmtTime(u.hospitalUntil)}` : '';
   $('money').textContent = `Деньги: ${u.money} руб${hosp}`;
   renderInvites();
+  updateSideBtn();
 }
 
 function renderInvites() {
@@ -417,7 +457,7 @@ function declineInvite(i) {
   saveAll(); renderMenu();
 }
 
-$('btnPlay').onclick = () => { showScreen('game'); initMap(); };
+$('btnPlay').onclick = () => { showScreen('game'); initMap(); updateSideBtn(); };
 $('btnBack').onclick = () => { cancelMode(); showScreen('menu'); };
 $('btnGroups').onclick = showGroupList;
 
@@ -498,6 +538,7 @@ function showOwnGroup(gid) {
     <p>Людей: ${g.members.length} / ${MAX_MEMBERS}</p>
     <p>Наёмники: ${mercs.length}${mercEnd}</p>
     <p>Доступно в бой: ${available(gid)}</p>
+    <p>Отрядов: ${squadsOf(gid).length}</p>
     <p>Воюет с: ${en}</p>
     <p>Территория: ${g.zone ? 'нарисована' : 'не нарисована'}</p>
     <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>`;
@@ -513,10 +554,12 @@ function showOwnGroup(gid) {
     });
     h += `
       <button class="btn" data-act="draw">${g.zone ? 'Нарисовать территорию заново' : 'Нарисовать территорию'}</button>
+      <button class="btn" data-act="squads">Отряды</button>
       <button class="btn" data-act="war">Война</button>
       <button class="btn" data-act="trade">Торговля</button>
       <button class="btn" data-act="diplo">Дипломатия</button>`;
     acts.draw = () => startMode('draw', gid, `Рисуйте территорию «${gname(gid)}»: кликайте по контуру. Минимум 3 точки.`, { undo: true, done: true });
+    acts.squads = () => showSquadsMenu(gid);
     acts.war = () => showWarMenu(gid);
     acts.trade = () => msg('Торговля: скоро');
     acts.diplo = () => showDiplo(gid);
@@ -610,6 +653,187 @@ function buyMercs(gid) {
   msg(`Нанято ${n} наёмн. Служат до ${fmtTime(exp)}.`);
 }
 
+// ================= ОТРЯДЫ =================
+const SQ_STATE = { idle: 'стоит', moving: 'в пути', waiting: 'в бою' };
+
+function showSquadsMenu(gid) {
+  const list = squadsOf(gid);
+  let h = '<h2>Отряды</h2>';
+  if (!list.length) h += '<p>Отрядов пока нет.</p>';
+  const acts = {};
+  list.forEach((s, i) => {
+    h += `<div class="inv">
+      <p><b>${esc(s.name)}</b>: ${s.kind === 'merc' ? 'наёмники' : 'пацаны'}, ${s.count} чел., ${SQ_STATE[s.state]}</p>
+      <button class="btn" data-act="s${i}">Управлять</button>
+    </div>`;
+    acts['s' + i] = () => openSquadMenu(s.id);
+  });
+  h += `
+    <button class="btn" data-act="new">Создать отряд</button>
+    <button class="btn secondary" data-act="close">Закрыть</button>`;
+  acts.new = () => showCreateSquad(gid);
+  openModal(h, acts);
+}
+
+function showCreateSquad(gid) {
+  if (!groups[gid].zone) return msg('Сначала нарисуйте территорию группировки.');
+  const mp = menPool(gid), cp = mercPool(gid);
+  openModal(`
+    <h2>Создать отряд</h2>
+    <p>Из кого:</p>
+    <button class="btn ${mp ? '' : 'secondary'}" data-act="men">Из пацанов (свободно ${mp})</button>
+    <button class="btn ${cp ? '' : 'secondary'}" data-act="merc">Из наёмников (свободно ${cp})</button>
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    men: () => showSquadForm(gid, 'men'),
+    merc: () => showSquadForm(gid, 'merc'),
+    back: () => showSquadsMenu(gid)
+  });
+}
+
+function showSquadForm(gid, kind) {
+  const pool = kind === 'men' ? menPool(gid) : mercPool(gid);
+  if (pool < 1) return msg('Свободных людей нет.');
+  openModal(`
+    <h2>Новый отряд</h2>
+    <input type="text" id="sqName" placeholder="Название отряда">
+    <input type="number" id="sqN" min="1" max="${pool}" value="${pool}">
+    <p>Максимум: ${pool}</p>
+    <button class="btn" data-act="ok">Создать</button>
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, {
+    ok: () => createSquad(gid, kind, $('sqName').value, $('sqN').value),
+    back: () => showCreateSquad(gid)
+  });
+}
+
+function createSquad(gid, kind, name, nRaw) {
+  const n = parseInt(nRaw, 10);
+  const pool = kind === 'men' ? menPool(gid) : mercPool(gid);
+  if (!(n >= 1) || n > pool) return msg(`Введите число от 1 до ${pool}.`);
+  const b = baseOf(gid);
+  if (!b) return msg('Сначала нарисуйте территорию.');
+  const k = squadsOf(gid).length;
+  squads.push({
+    id: rnd(), gid, kind,
+    name: (name || '').trim() || `Отряд ${k + 1}`,
+    count: n,
+    lat: b.lat + k * 0.00006,
+    lng: b.lng + (k % 2) * 0.00006,
+    state: 'idle'
+  });
+  saveAll();
+  refreshSquads();
+  msg('Отряд создан на вашей территории. Нажмите на него на карте, чтобы отправить.');
+}
+
+function openSquadMenu(sid) {
+  const s = squads.find(x => x.id === sid);
+  if (!s) return;
+  const busy = s.state === 'waiting';
+  openModal(`
+    <h2>Отряд «${esc(s.name)}»</h2>
+    <p>Состав: ${s.kind === 'merc' ? 'наёмники' : 'пацаны'}, ${s.count} чел.</p>
+    <p>Статус: ${SQ_STATE[s.state]}</p>
+    ${busy ? '<p>Отряд в бою, ждёт решения лидера.</p>' : `
+      <button class="btn" data-act="go">Отправить на точку</button>
+      <button class="btn secondary" data-act="base">Вернуть на базу</button>
+      <button class="btn secondary" data-act="dis">Расформировать</button>`}
+    <button class="btn secondary" data-act="back">Назад к отрядам</button>
+  `, {
+    go: () => { closeModal(); startDest(s.id); },
+    base: () => {
+      const b = baseOf(s.gid);
+      closeModal();
+      if (b) moveSquad(s.id, b.lat, b.lng);
+    },
+    dis: () => {
+      if (!confirm('Расформировать отряд?')) return;
+      squads = squads.filter(x => x.id !== s.id);
+      saveAll(); refreshSquads();
+      showSquadsMenu(s.gid);
+    },
+    back: () => showSquadsMenu(s.gid)
+  });
+}
+
+function startDest(sid) {
+  const s = squads.find(x => x.id === sid);
+  if (!s) return;
+  startMode('dest', s.gid, `Нажмите точку на карте, куда отправить отряд «${s.name}».`);
+  modeSquad = sid;
+}
+
+function squadPos(s, t) {
+  if (s.state !== 'moving') return { lat: s.lat, lng: s.lng };
+  const f = Math.min(1, Math.max(0, (t - s.startT) / (s.endT - s.startT)));
+  return {
+    lat: s.fromLat + (s.toLat - s.fromLat) * f,
+    lng: s.fromLng + (s.toLng - s.fromLng) * f
+  };
+}
+
+function moveSquad(sid, lat, lng) {
+  const s = squads.find(x => x.id === sid);
+  if (!s) return;
+  const now = Date.now();
+  const p = squadPos(s, now);
+  const dist = distM(p.lat, p.lng, lat, lng);
+  const dur = Math.max(2000, dist / SQUAD_SPEED * 1000);
+  Object.assign(s, {
+    lat: p.lat, lng: p.lng,
+    fromLat: p.lat, fromLng: p.lng,
+    toLat: lat, toLng: lng,
+    startT: now, endT: now + dur,
+    state: 'moving'
+  });
+  saveAll();
+  refreshSquads();
+  toast(`Отряд «${s.name}» выдвинулся. Прибудет через ${Math.ceil(dur / 1000)} сек.`);
+}
+
+// Отряд пришёл на точку
+function arrive(s) {
+  s.lat = s.toLat; s.lng = s.toLng; s.state = 'idle';
+  const t = ownerAt(s.lat, s.lng);
+
+  if (t === s.gid) return toast(`Отряд «${s.name}» на своей территории.`);
+  if (t === null) {
+    captureSector(s.lat, s.lng, s.gid);
+    return toast(`Отряд «${s.name}» захватил нейтральную точку.`);
+  }
+  if (!groups[s.gid].enemies.includes(t)) {
+    return toast(`Отряд «${s.name}»: вы не воюете с «${gname(t)}». Ждёт приказа.`);
+  }
+  const tg = groups[t];
+  if (!tg.leader) {
+    captureSector(s.lat, s.lng, s.gid);
+    return toast(`У «${gname(t)}» нет главаря. Отряд «${s.name}» забрал точку.`);
+  }
+  s.state = 'waiting';
+  tg.challenges.push({ id: rnd(), from: s.gid, lat: s.lat, lng: s.lng, attackers: s.count, squadId: s.id });
+  toast(`Отряд «${s.name}» вступил в бой за точку «${gname(t)}». Ждём ответа лидера.`);
+}
+
+let tickTimer = null;
+function tick() {
+  if (!currentEmail) return;
+  const now = Date.now();
+  let changed = false;
+  squads.forEach(s => {
+    if (s.state === 'moving' && now >= s.endT) { arrive(s); changed = true; }
+  });
+  if (changed) { saveAll(); refreshMap(); }
+  else if (squads.some(s => s.state === 'moving') && map) refreshSquads();
+}
+tickTimer = setInterval(tick, 1000);
+
+function updateSideBtn() {
+  const u = me();
+  $('btnSquads').style.display = (u && u.role === 'leader' && u.group) ? 'block' : 'none';
+}
+$('btnSquads').onclick = () => { if (me() && me().group) showSquadsMenu(me().group); };
+
 // ================= ВОЙНА =================
 function showWarMenu(gid) {
   const g = groups[gid];
@@ -639,13 +863,13 @@ function handleAttackPoint(from, ll) {
   const target = ownerAt(ll.lat, ll.lng);
   if (!target) {
     captureSector(ll.lat, ll.lng, from);
-    saveAll(); drawSectors();
+    saveAll(); refreshMap();
     return msg(`Точка ничья. «${gname(from)}» забирает её без боя.`);
   }
   if (target === from) return msg('Это уже ваша территория. Выберите чужую.');
   if (!groups[from].enemies.includes(target)) return msg(`Вы не воюете с «${gname(target)}». Сначала объявите войну.`);
   const avail = available(from);
-  if (avail < 1) return msg('Нет доступных людей: все в больнице или наёмники закончились.');
+  if (avail < 1) return msg('Нет доступных людей: все в больнице, в отрядах или наёмники закончились.');
   openModal(`
     <h2>Атака</h2>
     <p>Точка у «${esc(gname(target))}».</p>
@@ -666,7 +890,7 @@ function sendChallenge(from, target, ll, n) {
   const tg = groups[target];
   if (!tg.leader) {
     captureSector(ll.lat, ll.lng, from);
-    saveAll(); drawSectors();
+    saveAll(); refreshMap();
     return msg(`У «${gname(target)}» нет главаря. «${gname(from)}» забирает точку.`);
   }
   tg.challenges.push({ id: rnd(), from, lat: ll.lat, lng: ll.lng, attackers: n });
@@ -700,15 +924,29 @@ function respondChallenge(gid, chId, d) {
   if (!ch) return msg('Вызов уже неактуален.');
   g.challenges = g.challenges.filter(c => c.id !== chId);
   const a = ch.attackers;
+  const sq = ch.squadId ? squads.find(s => s.id === ch.squadId) : null;
   let text;
+
   if (a > d) {
     captureSector(ch.lat, ch.lng, ch.from);
     if (d > 0) sendToHospital(gid, d);
     text = `«${gname(ch.from)}» захватил точку. Защитники (${d}) в больнице на 30 сек.`;
+    if (sq) { sq.state = 'idle'; sq.lat = ch.lat; sq.lng = ch.lng; }
   } else {
-    sendToHospital(ch.from, a);
+    if (sq) {
+      if (sq.kind === 'merc') {
+        const m = groups[sq.gid].mercs;
+        m.splice(0, Math.min(a, m.length));
+      } else {
+        sendToHospital(sq.gid, a);
+      }
+      squads = squads.filter(s => s !== sq);
+    } else {
+      sendToHospital(ch.from, a);
+    }
     text = `«${gname(gid)}» отбил атаку. Атакующие (${a}) в больнице на 30 сек.`;
   }
+
   saveAll(); refreshMap();
   playBattle(ch.lat, ch.lng, a, d);
   setTimeout(() => msg(text), 1500);
@@ -873,8 +1111,8 @@ function declineLetter(gid, i) {
 }
 
 // ================= РЕЖИМЫ НА КАРТЕ =================
-let map = null, zoneLayer, sectorLayer, battleLayer, draftLayer;
-let mode = null, modeGid = null, drawPts = [];
+let map = null, zoneLayer, sectorLayer, battleLayer, draftLayer, squadLayer;
+let mode = null, modeGid = null, modeSquad = null, drawPts = [];
 
 function showHint(text, { undo = false, done = false } = {}) {
   $('hintText').textContent = text;
@@ -884,7 +1122,7 @@ function showHint(text, { undo = false, done = false } = {}) {
 }
 
 function cancelMode() {
-  mode = null; modeGid = null; drawPts = [];
+  mode = null; modeGid = null; modeSquad = null; drawPts = [];
   if (draftLayer) draftLayer.clearLayers();
   $('hint').classList.remove('active');
   if (map) map.getContainer().style.cursor = '';
@@ -899,6 +1137,7 @@ function startMode(kind, gid, text, opts = {}) {
   showHint(text, opts);
   map.getContainer().style.cursor = 'crosshair';
   renderDraft();
+  updateSideBtn();
 }
 
 function renderDraft() {
@@ -943,6 +1182,7 @@ function initMap() {
   zoneLayer = L.layerGroup().addTo(map);
   sectorLayer = L.layerGroup().addTo(map);
   battleLayer = L.layerGroup().addTo(map);
+  squadLayer = L.layerGroup().addTo(map);
   draftLayer = L.layerGroup().addTo(map);
 
   map.on('click', e => {
@@ -955,14 +1195,16 @@ function initMap() {
       handleAttackPoint(gid, e.latlng);
     } else if (mode === 'tpick') {
       handleTreatyPick(modeGid, e.latlng);
+    } else if (mode === 'dest') {
+      const sid = modeSquad;
+      cancelMode();
+      moveSquad(sid, e.latlng.lat, e.latlng.lng);
     }
   });
 
   refreshMap();
   setTimeout(() => map.invalidateSize(), 100);
 }
-
-function drawSectors() { refreshMap(); }
 
 function refreshMap() {
   if (!map) return;
@@ -981,6 +1223,29 @@ function refreshMap() {
       .addTo(sectorLayer)
       .bindTooltip(() => sectorTip(s), { sticky: true })
       .on('dblclick', () => onGroupDblClick(s.owner));
+  });
+  refreshSquads();
+}
+
+function refreshSquads() {
+  if (!squadLayer) return;
+  squadLayer.clearLayers();
+  const now = Date.now();
+  squads.forEach(s => {
+    const p = squadPos(s, now);
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="sq ${s.kind === 'merc' ? 'merc' : ''}" style="background:${gcolor(s.gid)}">${s.count}</div>`,
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    L.marker([p.lat, p.lng], { icon })
+      .addTo(squadLayer)
+      .bindTooltip(
+        `<b>${esc(s.name)}</b><br>${s.kind === 'merc' ? 'наёмники' : 'пацаны'}: ${s.count}<br>${esc(gname(s.gid))}, ${SQ_STATE[s.state]}`,
+        { sticky: true }
+      )
+      .on('click', () => { if (isLeaderOf(s.gid)) openSquadMenu(s.id); });
   });
 }
 
