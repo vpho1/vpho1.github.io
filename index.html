@@ -58,6 +58,7 @@
 
   .sq { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; color: #fff; font: bold 12px Arial; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px #000; }
   .sq.merc { border-style: dashed; }
+  .bld { width: 26px; height: 26px; border-radius: 6px; border: 2px solid #fff; color: #fff; font: bold 13px Arial; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 4px #000; background: #222; }
 
   .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; }
   .modal-bg.active { display: flex; }
@@ -107,6 +108,7 @@
   <div class="menu-btns">
     <button class="btn" id="btnPlay">Начать игру</button>
     <button class="btn secondary" id="btnGroups">Группировки</button>
+    <button class="btn secondary" id="btnAdmin">Админка</button>
     <button class="btn secondary" id="btnLogout">Выйти</button>
   </div>
 </div>
@@ -143,7 +145,15 @@ const MERC_TIME = 10 * 60 * 1000;
 const HOSPITAL_TIME = 30 * 1000;
 const START_MONEY = 1000;
 const SECTOR_R = 35;
-const SQUAD_SPEED = 12;          // метров в секунду
+const SQUAD_SPEED = 12;
+const ADMIN_PASS = '1234-qwer-4321';
+
+// Постройки
+const BUILD = {
+  gym:   { name: 'Качалка', cost: 300,  limit: 1, icon: 'К', color: '#ef6c00', periodMs: 2 * 60 * 1000, gain: { men: 1 } },
+  stall: { name: 'Ларёк',   cost: 100,  limit: 4, icon: 'Л', color: '#00838f', periodMs: 60 * 1000,     gain: { money: 10 } },
+  market:{ name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
+};
 
 // Стартовые территории (координаты [долгота, широта])
 const DEFS = [
@@ -203,7 +213,10 @@ function loadGroups() {
       challenges: g.challenges || [],
       mercs: g.mercs || [],
       letters: g.letters || [],
-      zone: g.zone !== undefined ? g.zone : d.coords.map(c => [c[1], c[0]])
+      zone: g.zone !== undefined ? g.zone : d.coords.map(c => [c[1], c[0]]),
+      buildings: g.buildings || [],
+      money: g.money || 0,
+      lastTick: g.lastTick || Date.now()
     };
   });
   return saved;
@@ -244,7 +257,6 @@ function cleanMercs(gid) {
 function freeMen(gid) { return groups[gid].members.filter(e => users[e] && !inHospital(e)).length; }
 function mercCount(gid) { return cleanMercs(gid).length; }
 
-// Люди, которые сидят в отрядах, не участвуют в атаке и обороне базы
 function squadsOf(gid) { return squads.filter(s => s.gid === gid); }
 function reservedMen(gid) { return squadsOf(gid).filter(s => s.kind === 'men').reduce((a, s) => a + s.count, 0); }
 function reservedMercs(gid) { return squadsOf(gid).filter(s => s.kind === 'merc').reduce((a, s) => a + s.count, 0); }
@@ -383,6 +395,7 @@ $('loginForm').addEventListener('submit', async e => {
 function login(email) {
   currentEmail = email;
   localStorage.setItem(K_SESSION, email);
+  applyIncome();
   renderMenu();
   showScreen('menu');
 }
@@ -539,6 +552,7 @@ function showOwnGroup(gid) {
     <p>Наёмники: ${mercs.length}${mercEnd}</p>
     <p>Доступно в бой: ${available(gid)}</p>
     <p>Отрядов: ${squadsOf(gid).length}</p>
+    <p>Казна: ${g.money} руб</p>
     <p>Воюет с: ${en}</p>
     <p>Территория: ${g.zone ? 'нарисована' : 'не нарисована'}</p>
     <p>Вы: ${isLeader ? 'главный' : 'шпана'}</p>`;
@@ -553,13 +567,13 @@ function showOwnGroup(gid) {
       acts['def:' + ch.id] = () => showDefend(gid, ch.id);
     });
     h += `
-      <button class="btn" data-act="draw">${g.zone ? 'Нарисовать территорию заново' : 'Нарисовать территорию'}</button>
       <button class="btn" data-act="squads">Отряды</button>
+      <button class="btn" data-act="build">Стройка</button>
       <button class="btn" data-act="war">Война</button>
       <button class="btn" data-act="trade">Торговля</button>
       <button class="btn" data-act="diplo">Дипломатия</button>`;
-    acts.draw = () => startMode('draw', gid, `Рисуйте территорию «${gname(gid)}»: кликайте по контуру. Минимум 3 точки.`, { undo: true, done: true });
     acts.squads = () => showSquadsMenu(gid);
+    acts.build = () => showBuildMenu(gid);
     acts.war = () => showWarMenu(gid);
     acts.trade = () => msg('Торговля: скоро');
     acts.diplo = () => showDiplo(gid);
@@ -653,6 +667,77 @@ function buyMercs(gid) {
   msg(`Нанято ${n} наёмн. Служат до ${fmtTime(exp)}.`);
 }
 
+// ================= СТРОЙКА =================
+function countBuilt(gid, type) { return groups[gid].buildings.filter(b => b.type === type).length; }
+
+function showBuildMenu(gid) {
+  const g = groups[gid];
+  if (!g.zone) return msg('Сначала нарисуйте территорию группировки.');
+  let h = `<h2>Стройка</h2><p>Казна: ${g.money} руб</p>`;
+  const acts = {};
+  Object.entries(BUILD).forEach(([type, b]) => {
+    const cnt = countBuilt(gid, type);
+    h += `<div class="inv">
+      <p><b>${b.name}</b>: ${b.cost} руб. Построено ${cnt} / ${b.limit}.</p>
+      <button class="btn" data-act="b_${type}">Построить</button>
+    </div>`;
+    acts['b_' + type] = () => startBuild(gid, type);
+  });
+  h += `<button class="btn secondary" data-act="close">Закрыть</button>`;
+  openModal(h, acts);
+}
+
+function startBuild(gid, type) {
+  const b = BUILD[type];
+  if (countBuilt(gid, type) >= b.limit) return msg(`Лимит: ${b.name} можно построить не больше ${b.limit} шт.`);
+  if (groups[gid].money < b.cost) return msg(`Не хватает денег в казне. Нужно ${b.cost} руб, в казне ${groups[gid].money} руб.`);
+  startMode('build', gid, `Нажмите точку на своей территории, где построить «${b.name}».`, { type });
+}
+
+function placeBuilding(gid, type, ll) {
+  const b = BUILD[type];
+  if (ownerAt(ll.lat, ll.lng) !== gid) return msg('Строить можно только на своей территории.');
+  const g = groups[gid];
+  if (countBuilt(gid, type) >= b.limit) return msg(`Лимит: ${b.name} уже построено.`);
+  if (g.money < b.cost) return msg('Не хватает денег в казне.');
+  g.money -= b.cost;
+  g.buildings.push({ id: rnd(), type, lat: ll.lat, lng: ll.lng, builtAt: Date.now(), lastGain: Date.now() });
+  saveAll(); refreshMap();
+  msg(`«${b.name}» построена.`);
+}
+
+// Начисление дохода: с учётом времени, пока сайт был закрыт
+function applyIncome() {
+  const now = Date.now();
+  let changed = false;
+  Object.entries(groups).forEach(([gid, g]) => {
+    g.buildings.forEach(bl => {
+      const def = BUILD[bl.type];
+      const elapsed = now - bl.lastGain;
+      const ticks = Math.floor(elapsed / def.periodMs);
+      if (ticks > 0) {
+        if (def.gain.money) g.money += ticks * def.gain.money;
+        if (def.gain.men) {
+          for (let i = 0; i < ticks * def.gain.men; i++) g.members.push(null); // пусто, см. ниже
+          g.members = g.members.filter(x => x !== null);
+          g.bonusMen = (g.bonusMen || 0) + ticks * def.gain.men;
+        }
+        bl.lastGain += ticks * def.periodMs;
+        changed = true;
+      }
+    });
+  });
+  if (changed) saveAll();
+}
+
+// Пацаны из качалки: добавляются к казне отряда пула, не требуют аккаунта
+function bonusMenOf(gid) { return groups[gid].bonusMen || 0; }
+
+// ================= СТРОЙКА: ОТРЯДЫ И ПОДСЧЁТ =================
+// Пацаны от качалок считаются отдельным резервом группировки
+function freeMenTotal(gid) { return freeMen(gid) + bonusMenOf(gid); }
+function menPoolTotal(gid) { return Math.max(0, freeMenTotal(gid) - reservedMen(gid)); }
+
 // ================= ОТРЯДЫ =================
 const SQ_STATE = { idle: 'стоит', moving: 'в пути', waiting: 'в бою' };
 
@@ -677,7 +762,7 @@ function showSquadsMenu(gid) {
 
 function showCreateSquad(gid) {
   if (!groups[gid].zone) return msg('Сначала нарисуйте территорию группировки.');
-  const mp = menPool(gid), cp = mercPool(gid);
+  const mp = menPoolTotal(gid), cp = mercPool(gid);
   openModal(`
     <h2>Создать отряд</h2>
     <p>Из кого:</p>
@@ -692,7 +777,7 @@ function showCreateSquad(gid) {
 }
 
 function showSquadForm(gid, kind) {
-  const pool = kind === 'men' ? menPool(gid) : mercPool(gid);
+  const pool = kind === 'men' ? menPoolTotal(gid) : mercPool(gid);
   if (pool < 1) return msg('Свободных людей нет.');
   openModal(`
     <h2>Новый отряд</h2>
@@ -709,7 +794,7 @@ function showSquadForm(gid, kind) {
 
 function createSquad(gid, kind, name, nRaw) {
   const n = parseInt(nRaw, 10);
-  const pool = kind === 'men' ? menPool(gid) : mercPool(gid);
+  const pool = kind === 'men' ? menPoolTotal(gid) : mercPool(gid);
   if (!(n >= 1) || n > pool) return msg(`Введите число от 1 до ${pool}.`);
   const b = baseOf(gid);
   if (!b) return msg('Сначала нарисуйте территорию.');
@@ -723,7 +808,7 @@ function createSquad(gid, kind, name, nRaw) {
     state: 'idle'
   });
   saveAll();
-  refreshSquads();
+  refreshMap();
   msg('Отряд создан на вашей территории. Нажмите на него на карте, чтобы отправить.');
 }
 
@@ -750,7 +835,7 @@ function openSquadMenu(sid) {
     dis: () => {
       if (!confirm('Расформировать отряд?')) return;
       squads = squads.filter(x => x.id !== s.id);
-      saveAll(); refreshSquads();
+      saveAll(); refreshMap();
       showSquadsMenu(s.gid);
     },
     back: () => showSquadsMenu(s.gid)
@@ -760,8 +845,7 @@ function openSquadMenu(sid) {
 function startDest(sid) {
   const s = squads.find(x => x.id === sid);
   if (!s) return;
-  startMode('dest', s.gid, `Нажмите точку на карте, куда отправить отряд «${s.name}».`);
-  modeSquad = sid;
+  startMode('dest', s.gid, `Нажмите точку на карте, куда отправить отряд «${s.name}».`, {}, sid);
 }
 
 function squadPos(s, t) {
@@ -788,11 +872,10 @@ function moveSquad(sid, lat, lng) {
     state: 'moving'
   });
   saveAll();
-  refreshSquads();
+  refreshMap();
   toast(`Отряд «${s.name}» выдвинулся. Прибудет через ${Math.ceil(dur / 1000)} сек.`);
 }
 
-// Отряд пришёл на точку
 function arrive(s) {
   s.lat = s.toLat; s.lng = s.toLng; s.state = 'idle';
   const t = ownerAt(s.lat, s.lng);
@@ -815,7 +898,7 @@ function arrive(s) {
   toast(`Отряд «${s.name}» вступил в бой за точку «${gname(t)}». Ждём ответа лидера.`);
 }
 
-let tickTimer = null;
+let tickTimer = setInterval(tick, 1000);
 function tick() {
   if (!currentEmail) return;
   const now = Date.now();
@@ -825,8 +908,8 @@ function tick() {
   });
   if (changed) { saveAll(); refreshMap(); }
   else if (squads.some(s => s.state === 'moving') && map) refreshSquads();
+  applyIncome();
 }
-tickTimer = setInterval(tick, 1000);
 
 function updateSideBtn() {
   const u = me();
@@ -1110,9 +1193,55 @@ function declineLetter(gid, i) {
   msg('Письмо отклонено. Война продолжается.');
 }
 
+// ================= АДМИНКА =================
+$('btnAdmin').onclick = () => {
+  openModal(`
+    <h2>Админка</h2>
+    <input type="password" id="admPass" placeholder="Пароль">
+    <button class="btn" data-act="enter">Войти</button>
+    <button class="btn secondary" data-act="close">Закрыть</button>
+  `, {
+    enter: () => {
+      if ($('admPass').value !== ADMIN_PASS) return msg('Неверный пароль.');
+      showAdminPanel();
+    }
+  });
+};
+
+function showAdminPanel() {
+  const opts = DEFS.map((d, i) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  openModal(`
+    <h2>Админка</h2>
+    <p>Группировка:</p>
+    <select id="admG">${opts}</select>
+    <p>Бойцов (шт.):</p>
+    <input type="number" id="admMen" min="1" placeholder="Сколько бойцов выдать">
+    <button class="btn" data-act="men">Выдать бойцов</button>
+    <p>Деньги в казну (руб.):</p>
+    <input type="number" id="admMoney" min="1" placeholder="Сумма">
+    <button class="btn" data-act="money">Выдать деньги</button>
+    <button class="btn secondary" data-act="close">Закрыть</button>
+  `, {
+    men: () => {
+      const gid = $('admG').value, n = parseInt($('admMen').value, 10);
+      if (!(n >= 1)) return msg('Введите число больше 0.');
+      groups[gid].bonusMen = (groups[gid].bonusMen || 0) + n;
+      saveAll();
+      msg(`Выдано ${n} бойцов группировке «${gname(gid)}».`);
+    },
+    money: () => {
+      const gid = $('admG').value, n = parseInt($('admMoney').value, 10);
+      if (!(n >= 1)) return msg('Введите сумму больше 0.');
+      groups[gid].money += n;
+      saveAll();
+      msg(`В казну «${gname(gid)}» выдано ${n} руб.`);
+    }
+  });
+}
+
 // ================= РЕЖИМЫ НА КАРТЕ =================
-let map = null, zoneLayer, sectorLayer, battleLayer, draftLayer, squadLayer;
-let mode = null, modeGid = null, modeSquad = null, drawPts = [];
+let map = null, zoneLayer, sectorLayer, battleLayer, draftLayer, squadLayer, buildLayer;
+let mode = null, modeGid = null, modeSquad = null, modeBuild = null, drawPts = [];
 
 function showHint(text, { undo = false, done = false } = {}) {
   $('hintText').textContent = text;
@@ -1122,16 +1251,19 @@ function showHint(text, { undo = false, done = false } = {}) {
 }
 
 function cancelMode() {
-  mode = null; modeGid = null; modeSquad = null; drawPts = [];
+  mode = null; modeGid = null; modeSquad = null; modeBuild = null; drawPts = [];
   if (draftLayer) draftLayer.clearLayers();
   $('hint').classList.remove('active');
   if (map) map.getContainer().style.cursor = '';
 }
 
-function startMode(kind, gid, text, opts = {}) {
+// Режим на карте. extra — id отряда (для отправки) или тип постройки
+function startMode(kind, gid, text, opts = {}, extra = null) {
   closeModal();
   cancelMode();
   mode = kind; modeGid = gid; drawPts = [];
+  if (kind === 'dest') modeSquad = extra;
+  if (kind === 'build') modeBuild = opts.type;
   showScreen('game');
   initMap();
   showHint(text, opts);
@@ -1182,6 +1314,7 @@ function initMap() {
   zoneLayer = L.layerGroup().addTo(map);
   sectorLayer = L.layerGroup().addTo(map);
   battleLayer = L.layerGroup().addTo(map);
+  buildLayer = L.layerGroup().addTo(map);
   squadLayer = L.layerGroup().addTo(map);
   draftLayer = L.layerGroup().addTo(map);
 
@@ -1199,6 +1332,10 @@ function initMap() {
       const sid = modeSquad;
       cancelMode();
       moveSquad(sid, e.latlng.lat, e.latlng.lng);
+    } else if (mode === 'build') {
+      const gid = modeGid, type = modeBuild;
+      cancelMode();
+      placeBuilding(gid, type, e.latlng);
     }
   });
 
@@ -1224,7 +1361,29 @@ function refreshMap() {
       .bindTooltip(() => sectorTip(s), { sticky: true })
       .on('dblclick', () => onGroupDblClick(s.owner));
   });
+  refreshBuildings();
   refreshSquads();
+}
+
+function refreshBuildings() {
+  if (!buildLayer) return;
+  buildLayer.clearLayers();
+  DEFS.forEach(d => {
+    groups[d.id].buildings.forEach(bl => {
+      const def = BUILD[bl.type];
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="bld" style="background:${def.color}">${def.icon}</div>`,
+        iconSize: [26, 26], iconAnchor: [13, 13]
+      });
+      L.marker([bl.lat, bl.lng], { icon })
+        .addTo(buildLayer)
+        .bindTooltip(`<b>${def.name}</b><br>${esc(gname(d.id))}`, { sticky: true })
+        .on('click', () => {
+          if (isLeaderOf(d.id) && bl.type === 'market') msg('Покупки: скоро');
+        });
+    });
+  });
 }
 
 function refreshSquads() {
@@ -1270,6 +1429,7 @@ function playBattle(lat, lng, a, d) {
   const session = localStorage.getItem(K_SESSION);
   if (session && users[session]) {
     currentEmail = session;
+    applyIncome();
     renderMenu();
     showScreen('menu');
   } else {
