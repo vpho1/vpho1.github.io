@@ -148,14 +148,12 @@ const SECTOR_R = 35;
 const SQUAD_SPEED = 12;
 const ADMIN_PASS = '1234-qwer-4321';
 
-// Постройки
 const BUILD = {
-  gym:   { name: 'Качалка', cost: 300,  limit: 1, icon: 'К', color: '#ef6c00', periodMs: 2 * 60 * 1000, gain: { men: 1 } },
-  stall: { name: 'Ларёк',   cost: 100,  limit: 4, icon: 'Л', color: '#00838f', periodMs: 60 * 1000,     gain: { money: 10 } },
-  market:{ name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
+  gym:    { name: 'Качалка', cost: 300,  limit: 1, icon: 'К', color: '#ef6c00', periodMs: 2 * 60 * 1000, gain: { men: 1 } },
+  stall:  { name: 'Ларёк',   cost: 100,  limit: 4, icon: 'Л', color: '#00838f', periodMs: 60 * 1000,     gain: { money: 10 } },
+  market: { name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
 };
 
-// Стартовые территории (координаты [долгота, широта])
 const DEFS = [
   {
     id: 'univ', name: 'Универсам', color: '#2e7d32',
@@ -216,7 +214,7 @@ function loadGroups() {
       zone: g.zone !== undefined ? g.zone : d.coords.map(c => [c[1], c[0]]),
       buildings: g.buildings || [],
       money: g.money || 0,
-      lastTick: g.lastTick || Date.now()
+      bonusMen: g.bonusMen || 0
     };
   });
   return saved;
@@ -260,9 +258,10 @@ function mercCount(gid) { return cleanMercs(gid).length; }
 function squadsOf(gid) { return squads.filter(s => s.gid === gid); }
 function reservedMen(gid) { return squadsOf(gid).filter(s => s.kind === 'men').reduce((a, s) => a + s.count, 0); }
 function reservedMercs(gid) { return squadsOf(gid).filter(s => s.kind === 'merc').reduce((a, s) => a + s.count, 0); }
-function menPool(gid) { return Math.max(0, freeMen(gid) - reservedMen(gid)); }
+function freeMenTotal(gid) { return freeMen(gid) + groups[gid].bonusMen; }
+function menPoolTotal(gid) { return Math.max(0, freeMenTotal(gid) - reservedMen(gid)); }
 function mercPool(gid) { return Math.max(0, mercCount(gid) - reservedMercs(gid)); }
-function available(gid) { return menPool(gid) + mercPool(gid); }
+function available(gid) { return menPoolTotal(gid) + mercPool(gid); }
 
 function sendToHospital(gid, count) {
   const g = groups[gid];
@@ -395,7 +394,6 @@ $('loginForm').addEventListener('submit', async e => {
 function login(email) {
   currentEmail = email;
   localStorage.setItem(K_SESSION, email);
-  applyIncome();
   renderMenu();
   showScreen('menu');
 }
@@ -701,27 +699,22 @@ function placeBuilding(gid, type, ll) {
   if (countBuilt(gid, type) >= b.limit) return msg(`Лимит: ${b.name} уже построено.`);
   if (g.money < b.cost) return msg('Не хватает денег в казне.');
   g.money -= b.cost;
-  g.buildings.push({ id: rnd(), type, lat: ll.lat, lng: ll.lng, builtAt: Date.now(), lastGain: Date.now() });
+  g.buildings.push({ id: rnd(), type, lat: ll.lat, lng: ll.lng, lastGain: Date.now() });
   saveAll(); refreshMap();
   msg(`«${b.name}» построена.`);
 }
 
-// Начисление дохода: с учётом времени, пока сайт был закрыт
+// Доход: считается по прошедшему времени, даже если сайт был закрыт
 function applyIncome() {
   const now = Date.now();
   let changed = false;
-  Object.entries(groups).forEach(([gid, g]) => {
+  Object.values(groups).forEach(g => {
     g.buildings.forEach(bl => {
       const def = BUILD[bl.type];
-      const elapsed = now - bl.lastGain;
-      const ticks = Math.floor(elapsed / def.periodMs);
+      const ticks = Math.floor((now - bl.lastGain) / def.periodMs);
       if (ticks > 0) {
         if (def.gain.money) g.money += ticks * def.gain.money;
-        if (def.gain.men) {
-          for (let i = 0; i < ticks * def.gain.men; i++) g.members.push(null); // пусто, см. ниже
-          g.members = g.members.filter(x => x !== null);
-          g.bonusMen = (g.bonusMen || 0) + ticks * def.gain.men;
-        }
+        if (def.gain.men) g.bonusMen += ticks * def.gain.men;
         bl.lastGain += ticks * def.periodMs;
         changed = true;
       }
@@ -729,14 +722,6 @@ function applyIncome() {
   });
   if (changed) saveAll();
 }
-
-// Пацаны из качалки: добавляются к казне отряда пула, не требуют аккаунта
-function bonusMenOf(gid) { return groups[gid].bonusMen || 0; }
-
-// ================= СТРОЙКА: ОТРЯДЫ И ПОДСЧЁТ =================
-// Пацаны от качалок считаются отдельным резервом группировки
-function freeMenTotal(gid) { return freeMen(gid) + bonusMenOf(gid); }
-function menPoolTotal(gid) { return Math.max(0, freeMenTotal(gid) - reservedMen(gid)); }
 
 // ================= ОТРЯДЫ =================
 const SQ_STATE = { idle: 'стоит', moving: 'в пути', waiting: 'в бою' };
@@ -901,6 +886,7 @@ function arrive(s) {
 let tickTimer = setInterval(tick, 1000);
 function tick() {
   if (!currentEmail) return;
+  applyIncome();
   const now = Date.now();
   let changed = false;
   squads.forEach(s => {
@@ -908,7 +894,6 @@ function tick() {
   });
   if (changed) { saveAll(); refreshMap(); }
   else if (squads.some(s => s.state === 'moving') && map) refreshSquads();
-  applyIncome();
 }
 
 function updateSideBtn() {
@@ -1209,7 +1194,7 @@ $('btnAdmin').onclick = () => {
 };
 
 function showAdminPanel() {
-  const opts = DEFS.map((d, i) => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
+  const opts = DEFS.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join('');
   openModal(`
     <h2>Админка</h2>
     <p>Группировка:</p>
@@ -1220,12 +1205,14 @@ function showAdminPanel() {
     <p>Деньги в казну (руб.):</p>
     <input type="number" id="admMoney" min="1" placeholder="Сумма">
     <button class="btn" data-act="money">Выдать деньги</button>
+    <hr style="border-color:#333;margin:14px 0">
+    <button class="btn" data-act="reset" style="background:#b71c1c">Сбросить всю карту и аккаунты</button>
     <button class="btn secondary" data-act="close">Закрыть</button>
   `, {
     men: () => {
       const gid = $('admG').value, n = parseInt($('admMen').value, 10);
       if (!(n >= 1)) return msg('Введите число больше 0.');
-      groups[gid].bonusMen = (groups[gid].bonusMen || 0) + n;
+      groups[gid].bonusMen += n;
       saveAll();
       msg(`Выдано ${n} бойцов группировке «${gname(gid)}».`);
     },
@@ -1235,8 +1222,39 @@ function showAdminPanel() {
       groups[gid].money += n;
       saveAll();
       msg(`В казну «${gname(gid)}» выдано ${n} руб.`);
+    },
+    reset: () => {
+      openModal(`
+        <h2>Точно сбросить?</h2>
+        <p>Удалятся все аккаунты, группировки, территории, постройки, отряды и захваченные точки. Это нельзя отменить.</p>
+        <button class="btn" style="background:#b71c1c" data-act="doReset">Да, сбросить всё</button>
+        <button class="btn secondary" data-act="close">Отмена</button>
+      `, {
+        doReset: resetEverything
+      });
     }
   });
+}
+
+function resetEverything() {
+  users = {};
+  sectors = [];
+  squads = [];
+  groups = {};
+  DEFS.forEach(d => {
+    groups[d.id] = {
+      leader: null, members: [], enemies: [], challenges: [], mercs: [], letters: [],
+      zone: null, buildings: [], money: 0, bonusMen: 0
+    };
+  });
+  currentEmail = null;
+  [K_USERS, K_SESSION, K_GROUPS, K_SECTORS, K_SQUADS].forEach(k => localStorage.removeItem(k));
+  saveAll();
+  cancelMode();
+  closeModal();
+  refreshMap();
+  showScreen('auth');
+  msg('Всё сброшено. Карта и аккаунты очищены.');
 }
 
 // ================= РЕЖИМЫ НА КАРТЕ =================
@@ -1257,7 +1275,6 @@ function cancelMode() {
   if (map) map.getContainer().style.cursor = '';
 }
 
-// Режим на карте. extra — id отряда (для отправки) или тип постройки
 function startMode(kind, gid, text, opts = {}, extra = null) {
   closeModal();
   cancelMode();
