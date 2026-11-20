@@ -69,6 +69,8 @@
   .inv { background: #222; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
   .inv p { margin-bottom: 8px; font-size: 14px; }
   .inv .btn { width: auto; display: inline-block; padding: 8px 12px; font-size: 14px; margin-right: 6px; }
+  table.ptable { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 14px; }
+  table.ptable td { padding: 6px 4px; border-bottom: 1px solid #333; }
 
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1a1a1a; border: 1px solid #e53935; color: #fff; padding: 10px 14px; border-radius: 8px; z-index: 1500; display: none; font-size: 14px; max-width: 90%; text-align: center; }
   #toast.active { display: block; }
@@ -149,8 +151,8 @@ const SQUAD_SPEED = 12;
 const ADMIN_PASS = '1234-qwer-4321';
 const PORT_HOLD_MS = 3000;
 const BOAT_PRICE = 5000;
-const BOAT_SPEED = 8;          // м/с
-const DOCK_R = 15;             // радиус причала порта 2, м
+const BOAT_SPEED = 8;
+const DOCK_R = 15;          // радиус причала, м
 
 const BUILD = {
   gym:    { name: 'Качалка', cost: 300,  limit: 1, icon: 'К', color: '#ef6c00', periodMs: 2 * 60 * 1000, gain: { men: 1 } },
@@ -158,12 +160,12 @@ const BUILD = {
   market: { name: 'Рынок',   cost: 5000, limit: 1, icon: 'Р', color: '#f9a825', periodMs: 60 * 1000,     gain: { money: 450 } }
 };
 
-// Порт 1 (квадрат входа на причал). Координаты [широта, долгота]
+// Порт 1 (квадрат причала). [широта, долгота]
 const PORT1 = [
   [55.830116, 37.9628419], [55.829843, 37.9619367], [55.8292686, 37.9624441],
   [55.8295282, 37.9633751], [55.8295283, 37.9633745], [55.830116, 37.9628419]
 ];
-// Порт 2 (берег). Видно всем
+// Порт 2 (берег)
 const PORT2 = [
   [55.8244828,37.9618552],[55.8246438,37.9620485],[55.8247622,37.962364],[55.8247121,37.9626639],
   [55.8244489,37.9622333],[55.8244127,37.9621778],[55.8242117,37.9622653],[55.8241243,37.9623507],
@@ -171,8 +173,9 @@ const PORT2 = [
   [55.8239227,37.9621783],[55.8239758,37.9621519],[55.8240633,37.9619953],[55.8241618,37.9618941],
   [55.8243326,37.9618534],[55.8243314,37.9618541],[55.8244828,37.9618552]
 ];
-// Причал порта 2: точка, где лодка пристаёт и бойцы сходят на берег. Видна всем
-const DOCK_IN = [55.8244061, 37.9622816];
+const DOCK_IN = [55.8244061, 37.9622816];        // причал порта 2
+const BOAT_SPAWN = [55.8293302, 37.9614738];     // где появляется лодка (порт 1)
+const RETURN_PIER = [55.8294084, 37.9616965];    // точка возврата, видна всем
 
 // Стартовые территории (координаты [долгота, широта])
 const DEFS = [
@@ -879,8 +882,6 @@ function openSquadMenu(sid) {
   const s = squads.find(x => x.id === sid);
   if (!s) return;
   const busy = s.state === 'waiting';
-  const canBoard = !s.onBoat && s.state === 'idle' && isLeaderOf(s.gid) && groups[s.gid].boat &&
-                   groups[s.gid].boat.state === 'port1' && inPoly(s.lat, s.lng, PORT1);
   let body;
   if (s.onBoat) {
     body = '<p>Отряд на лодке. Высадить можно у причала порта 2.</p>';
@@ -889,9 +890,8 @@ function openSquadMenu(sid) {
   } else {
     body = `
       <button class="btn" data-act="go">Отправить на точку</button>
-      <button class="btn secondary" data-act="base">Вернуть на базу</button>`;
-    if (canBoard) body += `<button class="btn" data-act="board">Погрузить на лодку</button>`;
-    body += `<button class="btn secondary" data-act="dis">Расформировать</button>`;
+      <button class="btn secondary" data-act="base">Вернуть на базу</button>
+      <button class="btn secondary" data-act="dis">Расформировать</button>`;
   }
   openModal(`
     <h2>Отряд «${esc(s.name)}»</h2>
@@ -906,7 +906,6 @@ function openSquadMenu(sid) {
       closeModal();
       if (b) moveSquad(s.id, b.lat, b.lng);
     },
-    board: () => boardSquad(s.id),
     dis: () => {
       if (!confirm('Расформировать отряд?')) return;
       squads = squads.filter(x => x.id !== s.id);
@@ -923,7 +922,6 @@ function startDest(sid) {
   startMode('dest', s.gid, `Нажмите точку на карте, куда отправить отряд «${s.name}».`, {}, sid);
 }
 
-// Позиция отряда: если он на лодке, едет вместе с ней
 function squadPos(s, t) {
   if (s.onBoat) {
     const b = groups[s.gid].boat;
@@ -993,15 +991,18 @@ function boatPos(b, t) {
   };
 }
 
+// Где сейчас лодка по координатам: у порта 1, у порта 2 или на воде
 function boatStateAt(lat, lng) {
-  if (inPoly(lat, lng, PORT1)) return 'port1';
+  if (inPoly(lat, lng, PORT1) || distM(lat, lng, BOAT_SPAWN[0], BOAT_SPAWN[1]) <= DOCK_R) return 'port1';
   if (distM(lat, lng, DOCK_IN[0], DOCK_IN[1]) <= DOCK_R || inPoly(lat, lng, PORT2)) return 'port2';
+  if (distM(lat, lng, RETURN_PIER[0], RETURN_PIER[1]) <= DOCK_R) return 'pier';
   return 'water';
 }
 
 function cargoOf(gid) { return squads.filter(s => s.gid === gid && s.onBoat); }
+function boardedMen(gid) { return cargoOf(gid).reduce((a, s) => a + s.count, 0); }
 
-// Клик по квадрату порта 1 (вход на причал)
+// Клик по квадрату порта 1: открывает меню порта
 function onPort1Click() {
   if (mode) return;
   const u = me();
@@ -1026,17 +1027,12 @@ function openPortMenu(gid) {
     h += `<button class="btn secondary" data-act="build">Собрать лодку</button>`;
     acts.build = () => msg('Сборка лодки: в разработке.');
   } else {
-    const stateText = { port1: 'стоит в порту 1', port2: 'у причала порта 2', water: 'на воде', moving: 'в пути' };
-    const cargo = cargoOf(gid);
-    h += `<p>Лодка: ${stateText[b.state]}</p>`;
-    h += `<p>На борту: ${cargo.length ? cargo.map(s => `${esc(s.name)} (${s.count})`).join(', ') : 'никого'}</p>`;
+    const stateText = { port1: 'стоит в порту 1', port2: 'у причала порта 2', pier: 'у причала (точка возврата)', water: 'на воде', moving: 'в пути' };
+    h += `<p>Лодка: ${stateText[b.state] || 'в пути'}</p>`;
+    h += `<p>На борту: ${boardedMen(gid)} чел.</p>`;
     if (leader) {
-      h += `<button class="btn" data-act="steer">Управлять лодкой</button>`;
-      acts.steer = () => startMode('steer', gid, 'Кликайте по реке, чтобы вести лодку. Чтобы выйти из режима, нажмите Отмена.');
-      if (b.state === 'port2' && cargo.length) {
-        h += `<button class="btn" data-act="ashore">Высадить на берег (порт 2)</button>`;
-        acts.ashore = () => disembark(gid);
-      }
+      h += `<button class="btn" data-act="ctrl">Управление</button>`;
+      acts.ctrl = () => showBoatControl(gid);
     } else {
       h += `<p>Управлять лодкой может только главный.</p>`;
     }
@@ -1044,6 +1040,159 @@ function openPortMenu(gid) {
 
   h += `<button class="btn secondary" data-act="close">Закрыть</button>`;
   openModal(h, acts);
+}
+
+// Меню управления лодкой
+function showBoatControl(gid) {
+  const b = groups[gid].boat;
+  if (!b) return msg('Лодки нет.');
+  const moving = b.state === 'moving';
+  let h = `<h2>Управление лодкой</h2>
+    <p>Людей на борту: ${boardedMen(gid)}</p>`;
+  const acts = {};
+
+  if (moving) {
+    h += `<p>Лодка в пути.</p>`;
+  } else {
+    h += `<button class="btn" data-act="cargo">Отряд на борту</button>
+          <button class="btn" data-act="steer">Вести по реке (кликами по карте)</button>`;
+    acts.cargo = () => showBoardTable(gid);
+    acts.steer = () => startMode('steer', gid, 'Кликайте по реке, чтобы вести лодку. Нажмите «Отмена», чтобы выйти.');
+    if (b.state === 'port1') {
+      h += `<button class="btn" data-act="toPort2">Отправить на порт 2</button>`;
+      acts.toPort2 = () => sailTo(gid, DOCK_IN, 'порт 2');
+    }
+    if (b.state !== 'pier') {
+      h += `<button class="btn secondary" data-act="toPier">Вернуть на точку возврата</button>`;
+      acts.toPier = () => sailTo(gid, RETURN_PIER, 'точку возврата');
+    }
+    if (b.state === 'port2' && boardedMen(gid) > 0) {
+      h += `<button class="btn" data-act="ashore">Высадить на берег</button>`;
+      acts.ashore = () => disembark(gid);
+    }
+    if (b.state === 'pier') {
+      h += `<p>Лодка у точки возврата. Ожидает решения.</p>`;
+    }
+  }
+  h += `<button class="btn secondary" data-act="back">Назад</button>`;
+  acts.back = () => openPortMenu(gid);
+  openModal(h, acts);
+}
+
+// Таблица людей: кто стоит на пирсе (порт 1), можно посадить
+function showBoardTable(gid) {
+  const b = groups[gid].boat;
+  if (!b || b.state !== 'port1') {
+    return msg('Посадить отряд можно только когда лодка стоит в порту 1.');
+  }
+  const onPier = squadsOf(gid).filter(s => !s.onBoat && s.state === 'idle' && inPoly(s.lat, s.lng, PORT1));
+  const aboard = cargoOf(gid);
+  let rows = '';
+  const acts = {};
+  onPier.forEach((s, i) => {
+    rows += `<tr><td>${esc(s.name)}</td><td>${s.count} чел.</td><td><button class="btn" data-act="bd${i}">Посадить</button></td></tr>`;
+    acts['bd' + i] = () => { boardSquad(s.id); };
+  });
+  aboard.forEach((s, i) => {
+    rows += `<tr><td>${esc(s.name)} (на борту)</td><td>${s.count} чел.</td><td><button class="btn secondary" data-act="ud${i}">Сойти</button></td></tr>`;
+    acts['ud' + i] = () => { unboardSquad(s.id); };
+  });
+  if (!rows) rows = '<tr><td colspan="3">Никого нет на пирсе.</td></tr>';
+  openModal(`
+    <h2>Отряд на борту</h2>
+    <p>Стойте на пирсе (порт 1) и садитесь на лодку. Посаженные исчезнут с карты.</p>
+    <table class="ptable">${rows}</table>
+    <button class="btn secondary" data-act="back">Назад</button>
+  `, { ...acts, back: () => showBoatControl(gid) });
+}
+
+function boardSquad(sid) {
+  const s = squads.find(x => x.id === sid);
+  if (!s) return;
+  s.onBoat = true;
+  s.state = 'idle';
+  s.zoneSince = null;
+  saveAll(); refreshMap();
+  showBoardTable(s.gid);
+}
+
+function unboardSquad(sid) {
+  const s = squads.find(x => x.id === sid);
+  if (!s) return;
+  s.onBoat = false;
+  const b = groups[s.gid].boat;
+  s.lat = PORT1_CENTER[0]; s.lng = PORT1_CENTER[1];
+  s.state = 'idle';
+  saveAll(); refreshMap();
+  showBoardTable(s.gid);
+}
+
+function sailTo(gid, dest, label) {
+  const b = groups[gid].boat;
+  if (!b) return msg('Лодки нет.');
+  if (b.state === 'moving') return msg('Лодка уже в пути.');
+  const now = Date.now();
+  const p = boatPos(b, now);
+  const dist = distM(p.lat, p.lng, dest[0], dest[1]);
+  const dur = Math.max(1000, dist / BOAT_SPEED * 1000);
+  Object.assign(b, {
+    state: 'moving', dest: 'pending',
+    lat: p.lat, lng: p.lng,
+    fromLat: p.lat, fromLng: p.lng,
+    toLat: dest[0], toLng: dest[1],
+    startT: now, endT: now + dur
+  });
+  saveAll(); refreshMap();
+  toast(`Лодка плывёт к «${label}». Прибытие через ${Math.ceil(dur / 1000)} сек.`);
+}
+
+function steerBoat(gid, ll) {
+  const b = groups[gid].boat;
+  if (!b) { cancelMode(); return msg('Лодки нет.'); }
+  if (b.state === 'moving') return;
+  const now = Date.now();
+  const p = boatPos(b, now);
+  const dist = distM(p.lat, p.lng, ll.lat, ll.lng);
+  if (dist < 3) return;
+  const dur = Math.max(1000, dist / BOAT_SPEED * 1000);
+  Object.assign(b, {
+    state: 'moving', dest: 'pending',
+    lat: p.lat, lng: p.lng,
+    fromLat: p.lat, fromLng: p.lng,
+    toLat: ll.lat, toLng: ll.lng,
+    startT: now, endT: now + dur
+  });
+  saveAll(); refreshMap();
+}
+
+// Высадка: бойцы сходят на берег у причала порта 2
+function disembark(gid) {
+  const b = groups[gid].boat;
+  if (!b || b.state !== 'port2') return msg('Высадка возможна только у причала порта 2.');
+  const cargo = cargoOf(gid);
+  if (!cargo.length) return msg('На лодке никого нет.');
+  cargo.forEach(s => {
+    s.onBoat = false;
+    s.state = 'idle';
+    s.lat = DOCK_IN[0];
+    s.lng = DOCK_IN[1];
+    s.zoneSince = null;
+  });
+  saveAll(); refreshMap();
+  msg(`Бойцы высажены на берег у причала порта 2: ${cargo.map(s => s.name).join(', ')}.`);
+}
+
+// Подплыла к точке возврата: спрашиваем, хочет ли попасть в порт
+function askEnterPort(gid) {
+  openModal(`
+    <h2>Лодка у точки возврата</h2>
+    <p>Хотите попасть в порт?</p>
+    <button class="btn" data-act="yes">Да</button>
+    <button class="btn secondary" data-act="no">Нет</button>
+  `, {
+    yes: () => { closeModal(); sailTo(gid, BOAT_SPAWN, 'порт 1'); },
+    no: () => closeModal()
+  });
 }
 
 function confirmBuyBoat(gid) {
@@ -1066,63 +1215,12 @@ function buyBoat(gid) {
   if (g.boat) return msg('Лодка уже есть.');
   if (g.money < BOAT_PRICE) return msg('Не хватает денег в казне.');
   g.money -= BOAT_PRICE;
-  g.boat = { state: 'port1', lat: PORT1_CENTER[0], lng: PORT1_CENTER[1] };
+  g.boat = { state: 'port1', lat: BOAT_SPAWN[0], lng: BOAT_SPAWN[1] };
   saveAll(); refreshMap();
   msg('Лодка куплена навсегда и стоит в порту 1.');
 }
 
-// Погрузка отряда: отряд должен стоять в порту 1, лодка тоже
-function boardSquad(sid) {
-  const s = squads.find(x => x.id === sid);
-  if (!s) return;
-  const b = groups[s.gid].boat;
-  if (!b || b.state !== 'port1') return msg('Погрузка возможна только когда лодка стоит в порту 1.');
-  if (!inPoly(s.lat, s.lng, PORT1)) return msg('Отряд должен стоять в квадрате порта 1.');
-  s.onBoat = true;
-  s.state = 'idle';
-  s.zoneSince = null;
-  saveAll(); refreshMap();
-  msg(`Отряд «${s.name}» погружен на лодку.`);
-}
-
-// Высадка: все бойцы лодки сходят на берег у причала порта 2
-function disembark(gid) {
-  const b = groups[gid].boat;
-  if (!b || b.state !== 'port2') return msg('Высадка возможна только у причала порта 2.');
-  const cargo = cargoOf(gid);
-  if (!cargo.length) return msg('На лодке никого нет.');
-  cargo.forEach(s => {
-    s.onBoat = false;
-    s.state = 'idle';
-    s.lat = DOCK_IN[0];
-    s.lng = DOCK_IN[1];
-    s.zoneSince = null;
-  });
-  saveAll(); refreshMap();
-  msg(`Отряды высажены на берег у причала порта 2: ${cargo.map(s => s.name).join(', ')}.`);
-}
-
-// Управление лодкой: клик по карте задаёт точку, в которую лодка плывёт
-function steerBoat(gid, ll) {
-  const b = groups[gid].boat;
-  if (!b) { cancelMode(); return msg('Лодки нет.'); }
-  const now = Date.now();
-  const p = boatPos(b, now);
-  const dist = distM(p.lat, p.lng, ll.lat, ll.lng);
-  if (dist < 3) return;
-  const dur = Math.max(1000, dist / BOAT_SPEED * 1000);
-  Object.assign(b, {
-    state: 'moving',
-    lat: p.lat, lng: p.lng,
-    fromLat: p.lat, fromLng: p.lng,
-    toLat: ll.lat, toLng: ll.lng,
-    startT: now, endT: now + dur
-  });
-  saveAll(); refreshMap();
-  toast(`Лодка плывёт. Прибытие через ${Math.ceil(dur / 1000)} сек.`);
-}
-
-// Проверка, что отряд простоял в порту 1 нужное время
+// Проверка порта 1: простоять 3 секунды
 function checkPortHold(now) {
   let changed = false;
   squads.forEach(s => {
@@ -1152,12 +1250,14 @@ function tick() {
     if (s.state === 'moving' && now >= s.endT) { arrive(s); changed = true; }
   });
 
-  Object.values(groups).forEach(g => {
+  Object.entries(groups).forEach(([gid, g]) => {
     const b = g.boat;
     if (b && b.state === 'moving' && now >= b.endT) {
       b.lat = b.toLat; b.lng = b.toLng;
       b.state = boatStateAt(b.lat, b.lng);
+      if (b.state === 'water') b.state = 'water';
       changed = true;
+      if (b.state === 'pier' && isLeaderOf(gid)) askEnterPort(gid);
     }
   });
 
@@ -1622,7 +1722,7 @@ function initMap() {
       cancelMode();
       placeBuilding(gid, type, e.latlng);
     } else if (mode === 'steer') {
-      steerBoat(modeGid, e.latlng);   // режим остаётся, можно вести дальше
+      steerBoat(modeGid, e.latlng);
     }
   });
 
@@ -1643,19 +1743,24 @@ function refreshMap() {
       .on('dblclick', () => onGroupDblClick(d.id));
   });
 
-  // Порт 1: квадрат входа на причал (видно всем)
+  // Порт 1: квадрат причала
   L.polygon(PORT1, { color: '#00acc1', weight: 2, fillColor: '#00acc1', fillOpacity: 0.4 })
     .addTo(zoneLayer)
     .bindTooltip('Порт 1 (причал)', { sticky: true })
     .on('click', onPort1Click);
 
-  // Порт 2: берег и причал (видно всем, чтобы было куда сойти на берег)
+  // Порт 2: берег и причал (видно всем)
   L.polygon(PORT2, { color: '#00acc1', weight: 2, fillColor: '#00acc1', fillOpacity: 0.4 })
     .addTo(zoneLayer)
     .bindTooltip('Порт 2 (берег)', { sticky: true });
   L.circleMarker(DOCK_IN, { radius: 5, color: '#fff', fillColor: '#00e5ff', fillOpacity: 1, weight: 1 })
     .addTo(zoneLayer)
     .bindTooltip('Причал порта 2: сюда причалить и сойти на берег', { sticky: true });
+
+  // Точка возврата лодки (видна всем)
+  L.circleMarker(RETURN_PIER, { radius: 5, color: '#fff', fillColor: '#ffb300', fillOpacity: 1, weight: 1 })
+    .addTo(zoneLayer)
+    .bindTooltip('Точка возврата лодки', { sticky: true });
 
   sectorLayer.clearLayers();
   sectors.forEach(s => {
@@ -1694,7 +1799,7 @@ function refreshSquads() {
   squadLayer.clearLayers();
   const now = Date.now();
 
-  // Отряды на суше
+  // Отряды на суше (тем, кто на лодке, на карте не видно)
   squads.forEach(s => {
     if (s.onBoat) return;
     const p = squadPos(s, now);
@@ -1723,10 +1828,9 @@ function refreshSquads() {
       iconSize: [28, 28],
       iconAnchor: [14, 14]
     });
-    const cargo = cargoOf(gid).map(s => `${esc(s.name)} (${s.count})`).join(', ') || 'пусто';
     L.marker([p.lat, p.lng], { icon })
       .addTo(squadLayer)
-      .bindTooltip(`<b>Лодка</b> «${esc(gname(gid))}»<br>На борту: ${cargo}`, { sticky: true })
+      .bindTooltip(`<b>Лодка</b> «${esc(gname(gid))}»<br>На борту: ${boardedMen(gid)} чел.`, { sticky: true })
       .on('click', () => { if (me() && me().group === gid) openPortMenu(gid); });
   });
 }
